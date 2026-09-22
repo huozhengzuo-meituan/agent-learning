@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0032 · 何时值得引入多个 Agent — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><a class="skip-link" href="#main">跳到课程正文</a><main id="main" class="narrow">
+<nav aria-label="课程导航"><a href="../index.html#curriculum">课程地图</a><a href="../reference/glossary.html">术语速查</a><a href="../labs/README.md">实验入口</a></nav>
+<header><div class="eyebrow">11 · 复杂任务与验证 / LESSON 0032</div><h1>何时值得引入多个 Agent</h1><p class="lede">通过任务依赖与评估结果，决定使用并行工具还是多个 Agent。</p><div class="meta"><span>阅读 10–15 分钟 · 练习 20–40 分钟</span><span>来源核对：2026-09-22</span><span>应用侧 · TypeScript</span></div></header>
+<aside class="callout"><p><strong>本课交付：</strong>通过任务依赖与评估结果，决定使用并行工具还是多个 Agent。</p><p><strong>前置：</strong><a href="0024-graders-and-regressions.html">0024 评分器、重复试验与回归判断</a>、<a href="0025-tracing-and-observability.html">0025 用执行轨迹定位问题</a>、<a href="0026-cost-and-latency.html">0026 测量并优化任务成本与延迟</a>、<a href="0031-planning-and-harnesses.html">0031 长任务的计划与运行支撑</a></p><p>场景统一使用虚构文档与工单。代码注明示意时，需要接入你自己的项目上下文；本页不会发起模型调用。</p></aside>
+<section id="concept"><h2>先理解这个工程问题</h2>
+<p>多个 Agent 的直接收益通常来自独立探索、独立上下文或职责边界，而不是数量本身。比较三个发布模块时，三个子任务可以各自检索证据；修改同一份工单草稿时，多个作者同时写入反而增加冲突。先画依赖，再选择并行方式。</p>
+<p>如果只是已知的三次只读搜索，普通 Promise.all 就能并行；如果每个分支都要根据检索结果决定下一步，才有理由给它独立 Agent 循环。<a href="https://www.anthropic.com/engineering/multi-agent-research-system">Anthropic 的多 Agent 研究系统</a>给出这种独立研究分支的实践，但其收益与成本不能直接套用到短问答。</p>
+<p>任务委派应包含目标、允许资源、输出 schema、预算和终止条件。子 Agent 返回证据与不确定项；主 Agent 负责对齐口径和最终验收。子 Agent 的信心不是证据，相互投票也不能替代独立可检验的事实。共享写入通过一个协调者进行。</p>
+<p>具体失败场景：三个子 Agent 都只读到同一篇过期文档，却给出一致答案。增加人数没有增加信息。另一种失败是父任务取消，子任务继续消耗预算。实现要向下传播取消信号，汇总实际费用，限制总并发；使用 <a href="https://www.anthropic.com/engineering/harness-design-long-running-apps">独立评估角色</a>时也要校准评分偏差。</p></section>
+<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code>type ResearchResult = {
+  module: string; evidenceIds: string[]; unresolved: string[];
+};
+async function gather(
+  modules: string[],
+  research: (module: string, signal: AbortSignal) =&gt; Promise&lt;ResearchResult&gt;,
+  signal: AbortSignal
+) {
+  if (modules.length &gt; 3) throw new Error(&quot;CONCURRENCY_BUDGET&quot;);
+  signal.throwIfAborted();
+  return Promise.allSettled(modules.map(m =&gt; research(m, signal)));
+}
+// research 内部仍须遵守同一 signal；这里不提供强制终止保证。
+// allSettled 保留失败分支，汇总者不能把它们当作已完成。</code></pre></section>
+<section id="practice"><h2>动手：把判断变成证据</h2><ol><li>给三个模块分配互不重叠的范围，定义包含 evidenceIds 与 unresolved 的返回类型。</li><li>对同一组任务比较单 Agent、并行工具、三个子 Agent；先用固定夹具验证调度正确性。</li><li>让一个分支超时，再让父任务取消；检查汇总是否说明缺口，其他分支是否停止。</li></ol><div class="callout"><p><strong>验收：</strong>不会把失败分支包装成完整结论；能说明为何某任务需要独立推理而非普通并发；记录总成本与完成耗时。</p></div><details><summary>完成后再展开：参考解与检查思路</summary><p>并行工具适合已知独立请求；独立 Agent 适合每个模块都有多轮不确定探索。超时分支在最终结果列为未核实；重试受剩余预算限制。多个分支使用同一证据时应去重并检查版本。</p></details></section>
+<section id="quiz"><h2>检索练习：不看上文作答</h2><form class="quiz" data-quiz data-answer="0" data-correct="判断正确。请再用自己的话解释理由。" data-incorrect="这个选择尚未守住本课的关键边界。请重新推理，或展开解析。"><fieldset><legend>哪种情况最适合增加独立 Agent？</legend><label><input type="radio" name="answer" value="0"><span>独立分支研究</span></label><label><input type="radio" name="answer" value="1"><span>同段文字改写</span></label><label><input type="radio" name="answer" value="2"><span>同份文件争写</span></label></fieldset><button type="submit">检查答案</button><button type="reset">重新作答</button><p class="feedback" data-feedback></p></form><details><summary>答案与原因（离线、无脚本也可阅读）</summary><p>答案：独立分支研究。独立分支有机会隔离上下文并缩短关键路径；另外两项通常可以由一次调用或单写入者完成。</p></details></section>
+<section id="transfer"><h2>换个场景再判断</h2><p>四个 Agent 都认为某依赖没有漏洞，能直接发布这个结论吗？</p><details><summary>迁移题参考答案</summary><p>检查它们的证据来源、时间和检索范围。相同过期来源会产生相关错误；发布需当前权威证据或明确的未覆盖声明，并遵守业务审查要求。</p></details></section>
+<section id="reading"><h2>读原始资料</h2><p><strong>主阅读建议：</strong>主读研究系统的架构和失败经验，记录一个适用条件和一个不适用条件。</p><ul><li><a href="https://www.anthropic.com/engineering/multi-agent-research-system">Anthropic · Multi-agent research system</a></li><li><a href="https://www.anthropic.com/engineering/harness-design-long-running-apps">Anthropic · Harness design for long-running apps</a></li></ul><p class="muted">上列来源于 2026-09-22 核对。练习中的数据、阈值和 TypeScript 内部接口为课程设计；产品接口、价格和可用性需在实际接入时按版本重核。</p></section>
+<footer><p>看懂不等于掌握。明天闭卷重做判断题，一周后用新的工单重做迁移题。把你的答案、运行结果或疑问发给我，我们一起定位下一步；未提交练习前，本课不记录为已掌握。</p><nav aria-label="前后课程"><a href="0031-planning-and-harnesses.html">← 0031 上一课</a><a href="0033-testing-and-fault-injection.html">0033 下一课 →</a></nav></footer>
+</main></body></html>

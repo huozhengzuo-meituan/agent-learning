@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0037 · 后台 Agent 与持久任务生命周期 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><a class="skip-link" href="#main">跳到课程正文</a><main id="main" class="narrow">
+<nav aria-label="课程导航"><a href="../index.html#curriculum">课程地图</a><a href="../reference/glossary.html">术语速查</a><a href="../labs/README.md">实验入口</a></nav>
+<header><div class="eyebrow">13 · 运行与综合作品 / LESSON 0037</div><h1>后台 Agent 与持久任务生命周期</h1><p class="lede">设计一个断开浏览器后仍可恢复、取消和审计的后台任务。</p><div class="meta"><span>阅读 10–15 分钟 · 练习 20–40 分钟</span><span>来源核对：2026-09-22</span><span>应用侧 · TypeScript</span></div></header>
+<aside class="callout"><p><strong>本课交付：</strong>设计一个断开浏览器后仍可恢复、取消和审计的后台任务。</p><p><strong>前置：</strong><a href="0020-cancellation-and-concurrency.html">0020 取消、并发与过期结果</a>、<a href="0022-checkpoints-and-idempotency.html">0022 检查点、恢复与幂等</a>、<a href="0025-tracing-and-observability.html">0025 用执行轨迹定位问题</a>、<a href="0031-planning-and-harnesses.html">0031 长任务的计划与运行支撑</a></p><p>场景统一使用虚构文档与工单。代码注明示意时，需要接入你自己的项目上下文；本页不会发起模型调用。</p></aside>
+<section id="concept"><h2>先理解这个工程问题</h2>
+<p>后台任务意味着请求连接和任务生命周期分开。用户关闭页面后，运行仍有 runId、持久事件、产物和状态；再次打开可按事件游标续读。把 Promise 放进全局数组，或让服务端持续挂着一个 HTTP 请求，都不能证明进程崩溃后可以恢复。</p>
+<p>可采用排队、运行、等待批准、成功、失败、已取消等状态；worker 通过租约领取任务，以版本条件更新状态。事件游标帮助界面去重并续读，业务动作键防止恢复后重复写入。取消是请求与确认两个时刻：远端副作用已经发生时，不能把状态写成取消就假装它未发生。</p>
+<p><a href="https://openai.com/index/introducing-the-agents-api/">OpenAI 于 2026-09-10 发布 public beta 的 Agents API</a>，将 Codex harness 和运行基础设施以托管 API 提供；这是特定产品，公测接口与可用性需按当时文档核验。<a href="https://www.anthropic.com/engineering/managed-agents">Anthropic 2026-04 的 Managed Agents 工程文章</a>讨论 session、harness 与 sandbox 分离。可借鉴职责划分，但托管不自动代替你的租户授权、业务幂等和验收。</p>
+<p>具体失败：worker 写完草稿后崩溃，新 worker 从“运行中”重新执行，产生两份草稿。持久事件应记录动作标识与结果，接手者对账后恢复。下面是纯 TypeScript 状态判断示意，没有冒充任何托管产品 SDK。</p></section>
+<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code>type Run = {
+  id: string;
+  status: &quot;queued&quot; | &quot;running&quot; | &quot;waiting_approval&quot; |
+    &quot;succeeded&quot; | &quot;failed&quot; | &quot;cancelled&quot;;
+  version: number;
+  cancelRequested: boolean;
+};
+function mayStartNextAction(run: Run): boolean {
+  return run.status === &quot;running&quot; &amp;&amp; !run.cancelRequested;
+}
+const run: Run = {
+  id: &quot;r-9&quot;, status: &quot;running&quot;, version: 7, cancelRequested: true
+};
+console.log(mayStartNextAction(run)); // false
+// 持久层需原子校验 version；取消还要传播到已运行的工具并核对副作用。</code></pre></section>
+<section id="practice"><h2>动手：把判断变成证据</h2><ol><li>画出状态转移图，并标出等待批准恢复、取消确认以及终态禁止再次运行的边界。</li><li>创建六条带序号的虚构事件；模拟客户端从第 3 条断开，再从游标 3 续读并去重。</li><li>模拟 worker 重启：保持同一 runId 与动作键，核对已保存草稿；列一张托管与自托管责任表。</li></ol><div class="callout"><p><strong>验收：</strong>断线重连不丢失或重复显示事件；终态不会被迟到事件改回 running；重启后不重复业务写入。</p></div><details><summary>完成后再展开：参考解与检查思路</summary><p>客户端仅处理当前 runId 的下一条连续序号：重复事件忽略，出现缺号时先补放事件或重新取得一致快照；终态不得被迟到事件复活。服务端用版本条件阻止过期 worker 覆盖状态。取消请求先阻止新动作，再中断可取消操作并核对已发生效果。托管方可能维护 harness 与执行环境，应用仍拥有身份、资源范围、批准、预算与业务验收。</p></details></section>
+<section id="quiz"><h2>检索练习：不看上文作答</h2><form class="quiz" data-quiz data-answer="1" data-correct="判断正确。请再用自己的话解释理由。" data-incorrect="这个选择尚未守住本课的关键边界。请重新推理，或展开解析。"><fieldset><legend>任务已经进入成功终态，迟到运行事件应如何处理？</legend><label><input type="radio" name="answer" value="0"><span>恢复运行状态</span></label><label><input type="radio" name="answer" value="1"><span>忽略过期事件</span></label><label><input type="radio" name="answer" value="2"><span>重新执行任务</span></label></fieldset><button type="submit">检查答案</button><button type="reset">重新作答</button><p class="feedback" data-feedback></p></form><details><summary>答案与原因（离线、无脚本也可阅读）</summary><p>答案：忽略过期事件。状态更新须检查事件序号与任务版本，不能让迟到事件逆转已确认的终态。</p></details></section>
+<section id="transfer"><h2>换个场景再判断</h2><p>云厂商宣传能连续运行数天，你还需要自己实现什么？</p><details><summary>迁移题参考答案</summary><p>先按合同与文档核对持久化、取消、重试、事件保留和数据位置。业务侧仍需定义授权与动作幂等、费用上限、成功标准、审计与导出能力；还应准备服务不可用时的停止或迁移方案。</p></details></section>
+<section id="reading"><h2>读原始资料</h2><p><strong>主阅读建议：</strong>主读 Managed Agents 的 session/harness/sandbox 分离，再对照 Agents API 的托管边界与 public beta 状态。</p><ul><li><a href="https://openai.com/index/introducing-the-agents-api/">OpenAI · Agents API，2026-09-10，public beta</a></li><li><a href="https://www.anthropic.com/engineering/managed-agents">Anthropic · Managed Agents，2026-04-08</a></li></ul><p class="muted">上列来源于 2026-09-22 核对。练习中的数据、阈值和 TypeScript 内部接口为课程设计；产品接口、价格和可用性需在实际接入时按版本重核。</p></section>
+<footer><p>看懂不等于掌握。明天闭卷重做判断题，一周后用新的工单重做迁移题。把你的答案、运行结果或疑问发给我，我们一起定位下一步；未提交练习前，本课不记录为已掌握。</p><nav aria-label="前后课程"><a href="0036-computer-use-agents.html">← 0036 上一课</a><a href="0038-deployment-and-operations.html">0038 下一课 →</a></nav></footer>
+</main></body></html>

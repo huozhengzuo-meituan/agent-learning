@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="实现一个按租户、用户和会话授权读取的状态入口，解释“数据库里有历史”和“模型能看到历史”的区别。">
+<title>0013 · 会话状态与用户隔离 — TypeScript Agent 工程</title>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><a class="skip-link" href="#lesson">跳到课程正文</a>
+<main class="narrow" id="lesson">
+<nav aria-label="课程导航">
+      <a href="../index.html#curriculum">完整课程</a>
+      <a href="0012-runtime-and-harnesses.html">← 0012 模型、SDK 与 Harness：现代 Agent 运行时</a>
+      <a href="0014-context-selection.html">0014 选择下一步真正需要的上下文 →</a>
+      <a href="../reference/glossary.html">术语预览</a>
+    </nav>
+<header><p class="eyebrow">05 · 上下文工程 · Lesson 0013</p>
+<h1>会话状态与用户隔离</h1><p class="lede">实现一个按租户、用户和会话授权读取的状态入口，解释“数据库里有历史”和“模型能看到历史”的区别。</p>
+<div class="meta"><span>阅读与判断 15–20 分钟</span><span>实验 20–40 分钟</span><span>资料核对：2026-09-22</span></div></header>
+<aside class="callout"><p><strong>前置：</strong>第 0009 课的执行循环；TypeScript 对象、Map 和 Promise。</p><p><strong>能力状态：</strong>通用工程机制；本文 TypeScript 是概念示意，未连接真实模型或生产存储。</p><p>本课服务于研发知识助手项目；页面备齐不代表已经掌握。以动手结果、解释和后续迁移作为学习证据。</p></aside>
+<section aria-label="讲解与示例"><h2>会话不是一串可以随意转发的消息</h2>
+ <p>在研发知识助手里，用户 A 正在分析项目甲，用户 B 正在分析项目乙。浏览器都提交了 <code>threadId="today"</code>。如果服务端只按这个字符串取历史，两个人的上下文就会混在一起。另一个常见错误是相信客户端传来的完整消息数组：攻击者可以塞入伪造的工具结果，让模型以为它已经读过某份私有文档。</p>
+ <p>本课把三层状态分开：<strong>持久会话</strong>保存授权范围内的事件；<strong>运行状态</strong>保存当前任务的步骤、预算和待完成调用；<strong>模型输入</strong>是运行时本次挑出的材料。LangGraph 的官方文档区分线程检查点和跨线程 Store，这个划分可借来理解职责，但不会自动替应用实现用户鉴权。<a href="https://docs.langchain.com/oss/javascript/langgraph/persistence">资料：Persistence</a>。</p>
+ <h2>身份来自服务器，会话标识来自请求</h2>
+ <p>服务端先从已验证的登录态获得 principal，再读取会话并检查归属。会话 ID 即使很难猜，也不等于访问权限。不要让模型选择 tenantId；它只负责业务推理。下面通过返回副本避免调用方意外修改仓库，实际服务还要用数据库的事务或版本检查处理并发写入。</p><pre><code>type Principal = { tenantId: string; userId: string };
+type Thread = Principal &amp; {
+  id: string; revision: number; events: string[];
+};
+function readThread(
+  store: Map&lt;string, Thread&gt;, actor: Principal, id: string
+): Thread {
+  const row = store.get(id);
+  if (!row || row.tenantId !== actor.tenantId ||
+      row.userId !== actor.userId) {
+    throw new Error(&quot;THREAD_NOT_FOUND_OR_FORBIDDEN&quot;);
+  }
+  return structuredClone(row);
+}</code></pre><p>把状态存下来也不代表全部塞进下一次请求。模型只看到你实际发送的内容；运行时可保留原始事件，仅把当前目标、已核对事实和近期完整调用放入上下文。跨会话记忆另走范围明确的读取入口，不能默认合并同公司所有聊天。<a href="https://docs.langchain.com/oss/javascript/concepts/memory">资料：Memory overview</a>。</p>
+ <aside class="callout"><strong>追踪一次请求：</strong>登录态 → 会话归属检查 → 加载已提交事件 → 选择模型输入 → 执行循环 → 按 revision 提交。授权要发生在读取内容之前；权限撤销后，缓存也必须失效。</aside></section>
+<section id="practice"><h2>动手：让边界可观察</h2><ol><li>建立 A、B 两名用户，同一租户下分别拥有 <code>t-a</code>、<code>t-b</code>，每条会话写入不同的项目名。</li><li>用 A 读取 t-a、t-b、不存在的 ID；再以不同租户的同名用户读取 t-a。</li><li>在纸上画出“数据库保存 30 条事件，本轮模型只收到 8 条”的数据流。注明筛选在哪一层。</li></ol><p><strong>验收：</strong>仅第一种读取成功；其他读取不返回历史内容。修改返回对象后，再读原对象应不变。写下为什么客户端提交的 assistant/tool 消息不能直接视为可信记录。</p>
+<p class="muted">建议先独立完成；本课代码用于理解机制。实验可在工作区新建笔记或 TypeScript 文件，真实 API 与依赖准备见 <a href="../labs/README.md">实验说明</a>。</p>
+<details><summary>完成后查看参考解</summary><p>成功案例的 actor 和 row 的两个归属字段都一致。跨用户和跨租户访问应在返回内容前失败。筛选在服务端构建模型请求的步骤执行，原始事件继续留在持久存储供审计和恢复。客户端提供的是请求数据；只有服务器自己核实并记录的工具执行结果才可作为执行证据。</p><p>进一步实现时，更新条件包含 <code>revision === expectedRevision</code>，冲突后重新加载状态；不能把上一次读取的整条历史无条件覆盖回去。</p></details></section>
+<section id="check"><h2>不看上文，检验一次</h2>
+<form class="quiz" data-quiz data-answer="2" data-correct="判断正确。再用自己的话解释原因，核对是否只是记住了选项。" data-incorrect="这个判断遗漏了一个边界。请重读题目，或展开解析核对。">
+<fieldset><legend>攻击者知道了别人的会话 ID，服务端的首要约束是什么？</legend><label><input type="radio" name="answer" value="0"><span>直接读取所有历史</span></label><label><input type="radio" name="answer" value="1"><span>只让模型保守回答</span></label><label><input type="radio" name="answer" value="2"><span>重新校验用户权限</span></label></fieldset>
+<button type="submit">检查答案</button><button type="reset">重新作答</button><p class="feedback" data-feedback></p></form>
+<details><summary>答案与理由（无脚本时也可查看）</summary><p>答案：重新校验用户权限。身份和资源归属属于服务端授权。会话 ID 和系统提示都无法替代这个检查。</p></details>
+</section>
+<section id="transfer"><h2>换个情境，还能做对吗？</h2><p>同一用户切换到另一个公司空间时，用户 ID 不变。仅按 userId 缓存“上次使用的仓库”会发生什么？</p>
+<details><summary>迁移题参考思路</summary><p>旧空间的仓库信息可能进入新空间。缓存键和记忆命名空间至少包含 tenantId、userId 与用途范围，并在读取原资源时再次检查当前权限。</p></details>
+<p>明天用 2 分钟，不看答案重述本课最容易出错的边界；一周后换一个项目名与失败时序再做一次。把你的判断、代码或失败结果发给老师追问，我会据此调整后续练习。</p></section>
+<section id="sources"><h2>原始资料与继续阅读</h2><ul><li><a href="https://docs.langchain.com/oss/javascript/langgraph/persistence">LangGraph Persistence（主阅读）</a>：阅读 Checkpointer vs. store，写出你的项目分别保存什么。</li><li><a href="https://docs.langchain.com/oss/javascript/concepts/memory">LangChain Memory overview</a>：阅读 Short-term memory 与 Long-term memory，比较生命周期和范围。</li></ul>
+<p class="muted">链接在 2026-09-22 核对；知识点采用官方资料，实验数据和课程代码为教学设计。未调用收费模型 API，未以这些示例完成生产环境验证。遇到 SDK 版本差异先查官方变更记录。</p></section>
+<footer><p>困惑可以直接追问：“请用一个失败 trace 解释本课的边界”，或贴出你的实验结果。不要把看懂参考答案当成已经能独立实现。</p><nav aria-label="课程导航">
+      <a href="../index.html#curriculum">完整课程</a>
+      <a href="0012-runtime-and-harnesses.html">← 0012 模型、SDK 与 Harness：现代 Agent 运行时</a>
+      <a href="0014-context-selection.html">0014 选择下一步真正需要的上下文 →</a>
+      <a href="../reference/glossary.html">术语预览</a>
+    </nav></footer>
+</main></body></html>

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="解释分块如何影响证据完整性，并合并词法与向量候选得到可审计的排序。">
+<title>0016 · 向量检索、分块与排序 — TypeScript Agent 工程</title>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><a class="skip-link" href="#lesson">跳到课程正文</a>
+<main class="narrow" id="lesson">
+<nav aria-label="课程导航">
+      <a href="../index.html#curriculum">完整课程</a>
+      <a href="0015-retrieval-baseline.html">← 0015 先建立一个能测量的检索基线</a>
+      <a href="0017-rag-and-citations.html">0017 让回答与检索证据对应 →</a>
+      <a href="../reference/glossary.html">术语预览</a>
+    </nav>
+<header><p class="eyebrow">06 · 知识与记忆 · Lesson 0016</p>
+<h1>向量检索、分块与排序</h1><p class="lede">解释分块如何影响证据完整性，并合并词法与向量候选得到可审计的排序。</p>
+<div class="meta"><span>阅读与判断 15–20 分钟</span><span>实验 20–40 分钟</span><span>资料核对：2026-09-22</span></div></header>
+<aside class="callout"><p><strong>前置：</strong>第 0015 课的召回基线；数组排序与 Map。</p><p><strong>能力状态：</strong>通用工程机制；本文 TypeScript 是概念示意，未连接真实模型或生产存储。</p><p>本课服务于研发知识助手项目；页面备齐不代表已经掌握。以动手结果、解释和后续迁移作为学习证据。</p></aside>
+<section aria-label="讲解与示例"><h2>语义相似只是候选，不是事实</h2>
+ <p>向量把文本映射到数值空间，便于寻找语义接近的片段；“缓存没有更新”可能匹配“过期内容未失效”。但高相似度不代表它属于正确项目、版本或权限范围。错误码、函数名、版本号往往还需要词法匹配。Microsoft 的混合检索文档展示了合并全文与向量结果的设计。<a href="https://learn.microsoft.com/en-us/azure/search/hybrid-search-overview">资料：Hybrid search</a>。</p>
+ <p>不要把向量数据库当成 Agent 的所有记忆。它在这里的职责是提供候选，Agent 后续仍可按路径打开原文，检查缺失前提，或者发现文档过期。向量索引更新可以晚于原始文档，答案必须保留来源版本。</p>
+ <h2>分块时留住“这段话在说谁”</h2>
+ <p>一段只有“从 2.3 开始默认开启”的片段无法回答哪个功能。按标题、函数或完整条款分块，记录 documentId、section、version、contentHash、位置和权限信息；读取时可扩展相邻段落。Azure 的分块文档比较固定长度和结构分块，适合用来设计实验，而非把某个长度当成通用最优值。<a href="https://learn.microsoft.com/en-us/azure/search/vector-search-how-to-chunk-documents">资料：Chunk documents</a>。</p>
+ <h2>合并排名，避免硬加异尺度分数</h2>
+ <p>词法分数与向量相似度不在同一尺度，直接相加容易偏向某一侧。下面实现课程版 reciprocal rank fusion：每份排名按位置贡献 <code>1 / (k + rank)</code>，再合并同一 chunk。这里 k=60 是演示选择，要在你的数据上测量；输入必须已经完成权限过滤。</p><pre><code>function fuse(rankings: string[][], k = 60): string[] {
+  const scores = new Map&lt;string, number&gt;();
+  for (const list of rankings) {
+    [...new Set(list)].forEach((id, index) =&gt; {
+      scores.set(id, (scores.get(id) ?? 0) + 1 / (k + index + 1));
+    });
+  }
+  return [...scores].sort((a, b) =&gt; b[1] - a[1] ||
+    a[0].localeCompare(b[0])).map(([id]) =&gt; id);
+}
+// 词法：A,B,C；向量：B,D,A；B 通常因两边排名靠前而上升。
+const candidates = fuse([[&quot;A&quot;, &quot;B&quot;, &quot;C&quot;], [&quot;B&quot;, &quot;D&quot;, &quot;A&quot;]]);</code></pre><p>接下来可用 reranker 对候选与问题成对评分，只将少量结果交给模型。额外重排是否值得，取决于质量和耗时。Anthropic 的 Contextual Retrieval 介绍了给片段补充文档上下文的方法；这是 2024 年提出、仍可比较的索引技巧，本文不把它包装成 2026 年新标准。<a href="https://www.anthropic.com/engineering/contextual-retrieval">资料：Contextual Retrieval</a>。</p></section>
+<section id="practice"><h2>动手：让边界可观察</h2><ol><li>给“从 2.3 开始默认开启”补一段标题和适用范围；说明哪些字段进索引、哪些用于展示引用。</li><li>手算 A、B 的融合得分，核对上述返回顺序。</li><li>构造“旧版高相似度”和“新版稍低相似度”两个候选，设计版本过滤实验。</li></ol><p><strong>验收：</strong>返回顺序 B、A、D、C；证据能追溯原始文档位置。版本要求属于过滤或显式适用性判断，不能仅靠向量得分猜测。</p>
+<p class="muted">建议先独立完成；本课代码用于理解机制。实验可在工作区新建笔记或 TypeScript 文件，真实 API 与依赖准备见 <a href="../labs/README.md">实验说明</a>。</p>
+<details><summary>完成后查看参考解</summary><p>B 得分为 1/62+1/61，A 为 1/61+1/63，所以 B 在前；D 和 C 分别只有 1/62、1/63。补充上下文示例：“项目 Atlas，重试功能，版本 2.3：从 2.3 开始默认开启”；引用保留原文位置，明确哪部分是标题补充，不把自动生成的补充当原文。</p><p>实验至少比较固定长度、按章节两种分块。保持查询集和其他参数不变，观察召回与答案支持率，避免同时改全部变量而无法归因。</p></details></section>
+<section id="check"><h2>不看上文，检验一次</h2>
+<form class="quiz" data-quiz data-answer="0" data-correct="判断正确。再用自己的话解释原因，核对是否只是记住了选项。" data-incorrect="这个判断遗漏了一个边界。请重读题目，或展开解析核对。">
+<fieldset><legend>相似度最高的片段来自旧版本，用户问新版，应先做什么？</legend><label><input type="radio" name="answer" value="0"><span>校验来源适用版本</span></label><label><input type="radio" name="answer" value="1"><span>删除所有词法检索</span></label><label><input type="radio" name="answer" value="2"><span>直接采纳最高分项</span></label></fieldset>
+<button type="submit">检查答案</button><button type="reset">重新作答</button><p class="feedback" data-feedback></p></form>
+<details><summary>答案与理由（无脚本时也可查看）</summary><p>答案：校验来源适用版本。高相似度只说明相近，不保证适用。版本和权限是候选能否被使用的独立约束。</p></details>
+</section>
+<section id="transfer"><h2>换个情境，还能做对吗？</h2><p>把所有块扩大三倍，召回提高但回答更易混淆。你会如何保留收益？</p>
+<details><summary>迁移题参考思路</summary><p>尝试较小检索块配合父章节按需读取：先定位，再扩展真正需要的上下文。还可重排去重并限定总预算；用同一查询集测量，不假定块越大越好。</p></details>
+<p>明天用 2 分钟，不看答案重述本课最容易出错的边界；一周后换一个项目名与失败时序再做一次。把你的判断、代码或失败结果发给老师追问，我会据此调整后续练习。</p></section>
+<section id="sources"><h2>原始资料与继续阅读</h2><ul><li><a href="https://learn.microsoft.com/en-us/azure/search/hybrid-search-overview">Microsoft Hybrid search（主阅读）</a>：读混合查询与 RRF 的职责；忽略本课不需要的云部署步骤。</li><li><a href="https://learn.microsoft.com/en-us/azure/search/vector-search-how-to-chunk-documents">Microsoft Chunk documents</a>：比较固定长度、结构和上下文保留策略。</li><li><a href="https://www.anthropic.com/engineering/contextual-retrieval">Anthropic Contextual Retrieval</a>：理解给片段补上下文的具体用途；文中实验结果不保证迁移到你的数据。</li></ul>
+<p class="muted">链接在 2026-09-22 核对；知识点采用官方资料，实验数据和课程代码为教学设计。未调用收费模型 API，未以这些示例完成生产环境验证。遇到 SDK 版本差异先查官方变更记录。</p></section>
+<footer><p>困惑可以直接追问：“请用一个失败 trace 解释本课的边界”，或贴出你的实验结果。不要把看懂参考答案当成已经能独立实现。</p><nav aria-label="课程导航">
+      <a href="../index.html#curriculum">完整课程</a>
+      <a href="0015-retrieval-baseline.html">← 0015 先建立一个能测量的检索基线</a>
+      <a href="0017-rag-and-citations.html">0017 让回答与检索证据对应 →</a>
+      <a href="../reference/glossary.html">术语预览</a>
+    </nav></footer>
+</main></body></html>

@@ -19,6 +19,26 @@
 - [Model Context Protocol — Architecture overview](https://modelcontextprotocol.io/docs/learn/architecture)
   用于区分 Host、Client、Server 与协议职责。协议负责上下文交换，应用仍需负责控制流程与使用策略；具体协议版本在实作时核对。
 
+### 前沿工程与开放规范
+
+- [OpenAI — Harness engineering](https://openai.com/index/harness-engineering/)
+  2026-02-11 的一手工程案例。用于讨论环境可读性、可执行约束和反馈闭环；不将个案效率估计外推到所有项目。
+- [Anthropic — Harness design for long-running application development](https://www.anthropic.com/engineering/harness-design-long-running-apps)
+  2026-03-24 的长任务与外部验收案例。用于第 0031–0033 课，重点是任务边界和验证机制。
+- [Anthropic — Scaling Managed Agents](https://www.anthropic.com/engineering/managed-agents)
+  2026-04-08 的系统架构文章。用于 session、harness、sandbox 分离与故障恢复。
+- [Anthropic — Code execution with MCP](https://www.anthropic.com/engineering/code-execution-with-mcp)
+  用于按需发现工具、在执行环境处理数据及代码式工具组合；收益需在自身任务上测量。
+- [Agent Skills — Specification](https://agentskills.io/specification)
+  开放格式的一手规范。用于 Skill 元数据、渐进加载与资源组织，区分格式和宿主权限。
+- [Node.js — TypeScript](https://nodejs.org/api/typescript.html)
+  用于离线实验的运行条件：原生类型擦除与编译检查的区别，不依赖旧教程的运行标志。
+
+### 产品状态核对（不是性能或通用架构依据）
+
+- [OpenAI — Introducing the Agents API](https://openai.com/index/introducing-the-agents-api/)
+  2026-09-10 的发布信息，仅用于确认托管 Codex Harness API 的 public beta 状态。教学原理主要来自工程文档；不采用客户宣传数字作为结论。
+
 ## Wisdom (Communities)
 
 - [LangChain 官方论坛](https://forum.langchain.com/)
@@ -26,6 +46,6 @@
 
 ## Gaps
 
-- 模型提供商尚未确定，首次 API 课前补充对应提供商的官方请求、工具调用、错误和计费文档。
-- 到安全与运行阶段，补充所选运行环境的权限、密钥管理、隔离、部署和观测官方文档。
+- 课程给出了具体调用示例和官方阅读入口；学习者实际可用的提供商、账号与预算仍需在真实调用时确定，不默认拥有访问权限。
+- 高级课已引用安全与运行资料；具体生产部署平台仍未选择，实施时需核对该平台的权限、密钥管理和保留策略。
 - 后续如需要岗位能力对照，再结合学习者目标岗位的实际描述调整；当前不假设具体岗位要求。

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0031 · 长任务的计划与运行支撑 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><a class="skip-link" href="#main">跳到课程正文</a><main id="main" class="narrow">
+<nav aria-label="课程导航"><a href="../index.html#curriculum">课程地图</a><a href="../reference/glossary.html">术语速查</a><a href="../labs/README.md">实验入口</a></nav>
+<header><div class="eyebrow">11 · 复杂任务与验证 / LESSON 0031</div><h1>长任务的计划与运行支撑</h1><p class="lede">为跨多个上下文的长任务设计可恢复的进度与独立验收证据。</p><div class="meta"><span>阅读 10–15 分钟 · 练习 20–40 分钟</span><span>来源核对：2026-09-22</span><span>应用侧 · TypeScript</span></div></header>
+<aside class="callout"><p><strong>本课交付：</strong>为跨多个上下文的长任务设计可恢复的进度与独立验收证据。</p><p><strong>前置：</strong><a href="0012-runtime-and-harnesses.html">0012 模型、SDK 与 Harness：现代 Agent 运行时</a>、<a href="0022-checkpoints-and-idempotency.html">0022 检查点、恢复与幂等</a>、<a href="0024-graders-and-regressions.html">0024 评分器、重复试验与回归判断</a>、<a href="0025-tracing-and-observability.html">0025 用执行轨迹定位问题</a></p><p>场景统一使用虚构文档与工单。代码注明示意时，需要接入你自己的项目上下文；本页不会发起模型调用。</p></aside>
+<section id="concept"><h2>先理解这个工程问题</h2>
+<p>长任务的问题不只是提示很长。助手需要汇总十个模块的发布差异，做到一半进程退出；新执行者必须知道已验证的事实、未完成项、产物位置和继续的条件。把这些藏在一段对话中，恢复时容易重复工作或错认完成。</p>
+<p>本课的 harness 包含任务规格、受控工具、运行状态、产物、检查与反馈。计划是可修改的导航；验收证据必须对应真实产物版本。<a href="https://openai.com/index/harness-engineering/">OpenAI 2026-02 的工程案例</a>强调把可访问的仓库知识与反馈环境提供给 Agent。该案例的效率结果有特定团队与环境前提，不能当作普遍产能承诺。</p>
+<p>每个计划项保持一个小而可验证的交付，例如“模块 A 的三项变更均引用到版本化文档”。状态由执行结果推进，不能因为模型写了“完成”就通过。引用文件修改后，旧验收结果应失效；这和前端构建产物随源码版本变化的道理相同。</p>
+<p><a href="https://www.anthropic.com/engineering/harness-design-long-running-apps">Anthropic 2026-03 的长任务实验</a>讨论生成与评估分离，也指出旧模型需要的上下文重置策略可能随模型改善而失去价值。工程支撑应针对观测到的失败建立，并随评估重审，避免把历史补丁永久堆进每次执行。</p></section>
+<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code>type Item = {
+  id: string;
+  artifactHash: string;
+  state: &quot;todo&quot; | &quot;ready&quot; | &quot;verified&quot;;
+  checkedHash?: string;
+};
+function isComplete(item: Item): boolean {
+  return item.state === &quot;verified&quot;
+    &amp;&amp; item.checkedHash === item.artifactHash;
+}
+const item: Item = {
+  id: &quot;module-a&quot;, artifactHash: &quot;v2&quot;,
+  state: &quot;verified&quot;, checkedHash: &quot;v1&quot;
+};
+console.log(isComplete(item)); // false：新产物不能沿用旧验收</code></pre></section>
+<section id="practice"><h2>动手：把判断变成证据</h2><ol><li>把“汇总三个模块发布差异”拆成三个带证据要求的交付项和一个整合项。</li><li>在第二项结束后模拟上下文丢失，只给接手者任务规格、进度记录、产物 ID 和检查结果。</li><li>修改第一项产物的版本，验证完成判断失效；为重新检查写明触发条件。</li></ol><div class="callout"><p><strong>验收：</strong>接手者无需旧聊天就能找到下一项；任何已完成项都有同版本证据；恢复时不会重复生成已验收产物。</p></div><details><summary>完成后再展开：参考解与检查思路</summary><p>进度记录写目标、约束、完成项与证据、未解问题和下一步；不要复制全部对话。整合项等待三个模块的证据都通过。产物版本发生变化时重跑受影响检查，不能直接把 state 字段改回 verified。</p></details></section>
+<section id="quiz"><h2>检索练习：不看上文作答</h2><form class="quiz" data-quiz data-answer="1" data-correct="判断正确。请再用自己的话解释理由。" data-incorrect="这个选择尚未守住本课的关键边界。请重新推理，或展开解析。"><fieldset><legend>产物已经修改，旧验收结论应当如何处理？</legend><label><input type="radio" name="answer" value="0"><span>继续沿用结论</span></label><label><input type="radio" name="answer" value="1"><span>重新验证产物</span></label><label><input type="radio" name="answer" value="2"><span>只改完成文字</span></label></fieldset><button type="submit">检查答案</button><button type="reset">重新作答</button><p class="feedback" data-feedback></p></form><details><summary>答案与原因（离线、无脚本也可阅读）</summary><p>答案：重新验证产物。验收结论绑定产物版本，版本改变需要重验受影响部分。</p></details></section>
+<section id="transfer"><h2>换个场景再判断</h2><p>新模型已经不再提前放弃长任务，是否保留每十轮强制重置上下文？</p><details><summary>迁移题参考答案</summary><p>用代表性长任务比较保留和移除策略，观察成功率、恢复正确性、成本与延迟。若无收益且增加开销，就删除或缩小应用范围；模型升级后的 harness 也需要回归评估。</p></details></section>
+<section id="reading"><h2>读原始资料</h2><p><strong>主阅读建议：</strong>主读 OpenAI 文中的知识组织与反馈环境段落；再对照 Anthropic 对评估者及历史策略的反思。</p><ul><li><a href="https://openai.com/index/harness-engineering/">OpenAI · Harness engineering，2026-02-11</a></li><li><a href="https://www.anthropic.com/engineering/harness-design-long-running-apps">Anthropic · Harness design for long-running apps，2026-03-24</a></li></ul><p class="muted">上列来源于 2026-09-22 核对。练习中的数据、阈值和 TypeScript 内部接口为课程设计；产品接口、价格和可用性需在实际接入时按版本重核。</p></section>
+<footer><p>看懂不等于掌握。明天闭卷重做判断题，一周后用新的工单重做迁移题。把你的答案、运行结果或疑问发给我，我们一起定位下一步；未提交练习前，本课不记录为已掌握。</p><nav aria-label="前后课程"><a href="0030-framework-migration.html">← 0030 上一课</a><a href="0032-multi-agent-tradeoffs.html">0032 下一课 →</a></nav></footer>
+</main></body></html>

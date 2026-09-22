@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="为下一次调用编排上下文预算，并写出能够保留限制、证据与未完成动作的压缩摘要。">
+<title>0014 · 选择下一步真正需要的上下文 — TypeScript Agent 工程</title>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><a class="skip-link" href="#lesson">跳到课程正文</a>
+<main class="narrow" id="lesson">
+<nav aria-label="课程导航">
+      <a href="../index.html#curriculum">完整课程</a>
+      <a href="0013-conversation-state.html">← 0013 会话状态与用户隔离</a>
+      <a href="0015-retrieval-baseline.html">0015 先建立一个能测量的检索基线 →</a>
+      <a href="../reference/glossary.html">术语预览</a>
+    </nav>
+<header><p class="eyebrow">05 · 上下文工程 · Lesson 0014</p>
+<h1>选择下一步真正需要的上下文</h1><p class="lede">为下一次调用编排上下文预算，并写出能够保留限制、证据与未完成动作的压缩摘要。</p>
+<div class="meta"><span>阅读与判断 15–20 分钟</span><span>实验 20–40 分钟</span><span>资料核对：2026-09-22</span></div></header>
+<aside class="callout"><p><strong>前置：</strong>第 0013 课；理解 token 是模型计费和上下文长度的单位。</p><p><strong>能力状态：</strong>通用工程机制；本文 TypeScript 是概念示意，未连接真实模型或生产存储。</p><p>本课服务于研发知识助手项目；页面备齐不代表已经掌握。以动手结果、解释和后续迁移作为学习证据。</p></aside>
+<section aria-label="讲解与示例"><h2>上下文工程是每一步的选择</h2>
+ <p>知识助手已经检索了三份文档，现在要判断某次构建失败的原因。把三份全文、五十次旧搜索和整段聊天都发送给模型，会把真正关键的错误信息淹没。上下文工程要回答的是：<strong>这一步决定下一项动作，需要哪些材料？</strong>Anthropic 的工程文章讨论了按需读取、压缩和结构化笔记；它们是可组合的策略，不能只凭“窗口更大”假定效果更好。<a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents">资料：Context engineering</a>。</p>
+ <p>对本项目，先保留当前目标、用户限制、工具安全规则和未完成调用，再选择相关证据。已经读过的长输出可换成来源路径、版本和关键定位，必要时用工具重读。这里的“必须保留”由应用规则定义，不能让检索分数把用户的“只读，不修改”挤出去。</p>
+ <h2>先预留预算，再装材料</h2>
+ <p>下面把输入按完整块选择。token 数来自调用方使用的模型计数器；代码里的 budget 是教学参数，不对应任何厂商的窗口上限。工具调用和结果需要按提供商要求成组保留，不能在 JSON 中间按字符截断。</p><pre><code>type Block = {
+  id: string; tokens: number; priority: number; required: boolean;
+};
+function selectContext(blocks: Block[], budget: number): Block[] {
+  const picked = blocks.filter(b =&gt; b.required);
+  let remaining = budget - picked.reduce((n, b) =&gt; n + b.tokens, 0);
+  if (remaining &lt; 0) throw new Error(&quot;REQUIRED_CONTEXT_TOO_LARGE&quot;);
+  for (const b of blocks.filter(b =&gt; !b.required)
+      .sort((a, b) =&gt; b.priority - a.priority)) {
+    if (b.tokens &lt;= remaining) { picked.push(b); remaining -= b.tokens; }
+  }
+  return picked;
+}</code></pre><p>例如上下文预算 4,000 token，先扣除规则和当前问题 1,200，再扣除输出预留 800，本轮证据可用 2,000。这里只是教学算例；实际应按照提供商的上下文与输出计算规则计数。检索库中存着 20 MB 内容与这一轮发送了多少 token 是两件事。</p>
+ <h2>压缩必须保留可恢复性</h2>
+ <p>一份好摘要应至少说明目标、仍有效的约束、已验证结论及来源、已尝试但失败的方案、未决问题、下一步。把“工具计划写入文件”压成“已写入文件”会制造假状态。摘要应附原事件范围和来源版本；有争议时回到原记录核对。LangChain 的记忆说明也强调长历史中的过时信息会影响使用，删减策略应服务当前任务。<a href="https://docs.langchain.com/oss/javascript/concepts/memory">资料：Memory overview</a>。</p></section>
+<section id="practice"><h2>动手：让边界可观察</h2><ol><li>准备 5 个块：规则 600、当前问题 300、完整待处理调用 400、相关证据 A 900、历史日志 B 1,400 token。前三项 required=true，A 的优先级高于 B。</li><li>以 2,400 为输入预算运行选择逻辑，预测并核对结果。</li><li>把“用户只读；search 成功；read 超时；尚未找到原因”压成不超过 100 汉字的摘要。</li></ol><p><strong>验收：</strong>选择前三项加 A，共 2,200；摘要不能声称原因已定位，必须留下 read 超时及下一步。将 required 总量设为超过预算时明确失败，不能静默删规则。</p>
+<p class="muted">建议先独立完成；本课代码用于理解机制。实验可在工作区新建笔记或 TypeScript 文件，真实 API 与依赖准备见 <a href="../labs/README.md">实验说明</a>。</p>
+<details><summary>完成后查看参考解</summary><p>参考摘要：“目标：定位构建失败，限制：只读。已完成搜索，候选见事件 e12 的文档路径；读取正文超时，尚无根因证据。下一步重试授权范围内的读取；再次失败则报告缺失信息。原记录 e1–e13。”预算输出为 rules、question、pending、A；B 因放不下被省略。</p><p>压缩后的摘要不是权威来源；长期运行时还应检验它能否支撑下一步正确行动，而非只看缩短了多少 token。</p></details></section>
+<section id="check"><h2>不看上文，检验一次</h2>
+<form class="quiz" data-quiz data-answer="2" data-correct="判断正确。再用自己的话解释原因，核对是否只是记住了选项。" data-incorrect="这个判断遗漏了一个边界。请重读题目，或展开解析核对。">
+<fieldset><legend>压缩时最应该明确保留哪一类信息？</legend><label><input type="radio" name="answer" value="0"><span>每次重复寒暄内容</span></label><label><input type="radio" name="answer" value="1"><span>全部无关历史日志</span></label><label><input type="radio" name="answer" value="2"><span>当前限制待办证据</span></label></fieldset>
+<button type="submit">检查答案</button><button type="reset">重新作答</button><p class="feedback" data-feedback></p></form>
+<details><summary>答案与理由（无脚本时也可查看）</summary><p>答案：当前限制待办证据。压缩的目标是支持正确续做，不能丢掉限制、证据状态和未完成动作。</p></details>
+</section>
+<section id="transfer"><h2>换个情境，还能做对吗？</h2><p>压缩后模型又提出已经失败过两次的查询。你会怎样诊断，而不只增加“不要重复”的提示？</p>
+<details><summary>迁移题参考思路</summary><p>比较原记录与摘要是否保留了查询参数、失败类型和重复次数；检查下一轮是否真的收到摘要。若失败记录未进入上下文，修复选择或摘要格式；若已收到，再检查工具返回是否清楚、预算策略是否约束重复。</p></details>
+<p>明天用 2 分钟，不看答案重述本课最容易出错的边界；一周后换一个项目名与失败时序再做一次。把你的判断、代码或失败结果发给老师追问，我会据此调整后续练习。</p></section>
+<section id="sources"><h2>原始资料与继续阅读</h2><ul><li><a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents">Anthropic Context engineering（主阅读）</a>：重点读 Context retrieval 与 Compaction，注意收益及信息损失风险。</li><li><a href="https://docs.langchain.com/oss/javascript/concepts/memory">LangChain Memory overview</a>：阅读管理短期历史部分；不要照抄固定长度阈值。</li></ul>
+<p class="muted">链接在 2026-09-22 核对；知识点采用官方资料，实验数据和课程代码为教学设计。未调用收费模型 API，未以这些示例完成生产环境验证。遇到 SDK 版本差异先查官方变更记录。</p></section>
+<footer><p>困惑可以直接追问：“请用一个失败 trace 解释本课的边界”，或贴出你的实验结果。不要把看懂参考答案当成已经能独立实现。</p><nav aria-label="课程导航">
+      <a href="../index.html#curriculum">完整课程</a>
+      <a href="0013-conversation-state.html">← 0013 会话状态与用户隔离</a>
+      <a href="0015-retrieval-baseline.html">0015 先建立一个能测量的检索基线 →</a>
+      <a href="../reference/glossary.html">术语预览</a>
+    </nav></footer>
+</main></body></html>

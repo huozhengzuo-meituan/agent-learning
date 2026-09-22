@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0040 · 用新需求证明能力可以迁移 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><a class="skip-link" href="#main">跳到课程正文</a><main id="main" class="narrow">
+<nav aria-label="课程导航"><a href="../index.html#curriculum">课程地图</a><a href="../reference/glossary.html">术语速查</a><a href="../labs/README.md">实验入口</a></nav>
+<header><div class="eyebrow">13 · 运行与综合作品 / LESSON 0040</div><h1>用新需求证明能力可以迁移</h1><p class="lede">面对一个未做过的需求，独立选择架构、验证取舍并解释失败。</p><div class="meta"><span>阅读 10–15 分钟 · 练习 20–40 分钟（综合项目另计）</span><span>来源核对：2026-09-22</span><span>应用侧 · TypeScript</span></div></header>
+<aside class="callout"><p><strong>本课交付：</strong>面对一个未做过的需求，独立选择架构、验证取舍并解释失败。</p><p><strong>前置：</strong><a href="0024-graders-and-regressions.html">0024 评分器、重复试验与回归判断</a>、<a href="0026-cost-and-latency.html">0026 测量并优化任务成本与延迟</a>、<a href="0029-mcp-boundaries.html">0029 MCP 连接了什么，留下了什么</a>、<a href="0032-multi-agent-tradeoffs.html">0032 何时值得引入多个 Agent</a>、<a href="0034-skills-and-progressive-disclosure.html">0034 Skills 与渐进式上下文加载</a>、<a href="0037-background-and-durable-agents.html">0037 后台 Agent 与持久任务生命周期</a>、<a href="0039-capstone-project.html">0039 完成研发知识助手综合项目</a></p><p>场景统一使用虚构文档与工单。代码注明示意时，需要接入你自己的项目上下文；本页不会发起模型调用。</p></aside>
+<section id="concept"><h2>先理解这个工程问题</h2>
+<p>先独立完成 <a href="../CAPSTONE.md">任务书</a>中的“跨版本 API 差异解释”：只找到一个版本时必须说明缺失，先写 5 条验收再实现。本课再提供一个独立加测，以下评分仅用于这份新作业，与综合项目评分不同。熟悉同一个项目会产生熟练错觉，因此换一个目标：为虚构的开源项目维护者准备“本周 issue 复盘草稿”，整合重复问题、识别证据冲突、给出待跟进项；不自动关闭 issue 或发消息。你只能复用基础设施，不能复制上一课的提示与评分用例后改个名字。</p>
+<p>先写一页设计：用户需要什么结果，输入信任级别是什么，工具能读写什么，何时需要动态探索，成功怎样判断。比较确定性程序、单次模型调用与单 Agent 三个基线；只有独立分支真的带来收益才考虑多 Agent。需要跨会话运行时，再比较自己维护运行时与托管服务。</p>
+<p>以 <a href="https://modelcontextprotocol.io/specification/2026-07-28/architecture">MCP 的职责边界</a>解释连接层，以 <a href="https://openai.com/index/introducing-the-agents-api/">2026-09 的 Agents API 公测介绍</a>讨论托管选项；公测能力只能作为候选，不能忽略账号、地域、隐私和版本限制。文章介绍不是你的性能测试结果。</p>
+<p>评分关注迁移能力：需求与范围 20 分、最小合理架构 20 分、边界和失败处理 25 分、可复现评估 25 分、口头取舍 10 分。具体失败题：同一 issue 在两个来源出现，时间戳不同，Agent 把两条都当成新问题并重复计数。你需找出身份去重与证据冲突处理的位置，而非单纯增加提示长度。</p></section>
+<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code>type Issue = { source: string; project: string; number: number; updatedAt: string };
+function identity(issue: Issue): string {
+  return `${issue.project}:${issue.number}`;
+}
+const a: Issue = { source: &quot;cache&quot;, project: &quot;atlas&quot;, number: 42,
+  updatedAt: &quot;2026-09-20T08:00:00Z&quot; };
+const b: Issue = { source: &quot;live&quot;, project: &quot;atlas&quot;, number: 42,
+  updatedAt: &quot;2026-09-21T08:00:00Z&quot; };
+console.log(identity(a) === identity(b)); // true：来源不同不代表两个 issue
+// 冲突时保留来源和版本；更新时间较新也不自动证明其内容权威。</code></pre></section>
+<section id="practice"><h2>动手：把判断变成证据</h2><ol><li>限时 45 分钟独立写需求、边界和两种方案对照；先写验收，后设计实现。</li><li>用 90 分钟实现最小原型并准备 8 条新任务，至少包含重复记录、冲突证据、工具超时和恶意正文。</li><li>做 10 分钟答辩：说明为何选此方案、最贵步骤、何时升级架构、一次失败的证据，以及未完成验证。</li></ol><div class="callout"><p><strong>验收：</strong>新任务不泄漏进训练式提示调优过程；能用运行结果解释取舍；对未支持的写入明确拒绝；他人可复现一条失败。</p></div><details><summary>完成后再展开：参考解与检查思路</summary><p>可以先使用固定只读工具加单 Agent；标准化 issue 身份与去重交给程序，含糊的归类和补充检索留给模型。评分用结构正确、覆盖关键证据、避免重复与明确冲突的组合，不以文字像参考答案作为唯一标准。</p></details></section>
+<section id="quiz"><h2>检索练习：不看上文作答</h2><form class="quiz" data-quiz data-answer="1" data-correct="判断正确。请再用自己的话解释理由。" data-incorrect="这个选择尚未守住本课的关键边界。请重新推理，或展开解析。"><fieldset><legend>岗位面试中，哪种回答最能证明工程能力？</legend><label><input type="radio" name="answer" value="0"><span>背诵框架功能</span></label><label><input type="radio" name="answer" value="1"><span>解释证据取舍</span></label><label><input type="radio" name="answer" value="2"><span>罗列热门术语</span></label></fieldset><button type="submit">检查答案</button><button type="reset">重新作答</button><p class="feedback" data-feedback></p></form><details><summary>答案与原因（离线、无脚本也可阅读）</summary><p>答案：解释证据取舍。能够用约束、轨迹和评估解释选择，才能证明知识迁移到了新场景。</p></details></section>
+<section id="transfer"><h2>换个场景再判断</h2><p>面试官问“为什么不直接使用最新托管 Agent API”，用三句话回答。</p><details><summary>迁移题参考答案</summary><p>先说明目标与约束，例如租户数据访问及可导出运行证据。再比较托管减少的运维工作与仍由应用负责的授权、幂等和评估。最后提出一个相同任务集上的小型对照实验，用成功率、恢复、成本与迁移能力决定，而不是凭新旧选边。</p></details></section>
+<section id="reading"><h2>读原始资料</h2><p><strong>主阅读建议：</strong>重读两份材料，只写各自解决什么、仍留下什么；然后用自己的新需求验证这张责任表。</p><ul><li><a href="https://modelcontextprotocol.io/specification/2026-07-28/architecture">MCP 2026-07-28 · Architecture</a></li><li><a href="https://openai.com/index/introducing-the-agents-api/">OpenAI · Agents API，public beta</a></li></ul><p class="muted">上列来源于 2026-09-22 核对。练习中的数据、阈值和 TypeScript 内部接口为课程设计；产品接口、价格和可用性需在实际接入时按版本重核。</p></section>
+<footer><p>看懂不等于掌握。明天闭卷重做判断题，一周后用新的工单重做迁移题。把你的答案、运行结果或疑问发给我，我们一起定位下一步；未提交练习前，本课不记录为已掌握。</p><nav aria-label="前后课程"><a href="0039-capstone-project.html">← 0039 上一课</a><a href="../index.html#curriculum">回到课程地图 →</a></nav></footer>
+</main></body></html>

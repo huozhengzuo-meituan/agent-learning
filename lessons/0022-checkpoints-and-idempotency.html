@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="根据崩溃发生的位置选择恢复策略，避免把“响应丢失”误当成“动作未发生”。">
+<title>0022 · 检查点、恢复与幂等 — TypeScript Agent 工程</title>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><a class="skip-link" href="#lesson">跳到课程正文</a>
+<main class="narrow" id="lesson">
+<nav aria-label="课程导航">
+      <a href="../index.html#curriculum">完整课程</a>
+      <a href="0021-human-approval.html">← 0021 把人工确认做成程序约束</a>
+      <a href="0023-evaluation-datasets.html">0023 建立有代表性的评估任务集 →</a>
+      <a href="../reference/glossary.html">术语预览</a>
+    </nav>
+<header><p class="eyebrow">08 · 可靠性与评估 · Lesson 0022</p>
+<h1>检查点、恢复与幂等</h1><p class="lede">根据崩溃发生的位置选择恢复策略，避免把“响应丢失”误当成“动作未发生”。</p>
+<div class="meta"><span>阅读与判断 15–20 分钟</span><span>实验 20–40 分钟</span><span>资料核对：2026-09-22</span></div></header>
+<aside class="callout"><p><strong>前置：</strong>第 0011、0021 课；重试分类与审批状态。</p><p><strong>能力状态：</strong>通用工程机制；本文 TypeScript 是概念示意，未连接真实模型或生产存储。</p><p>本课服务于研发知识助手项目；页面备齐不代表已经掌握。以动手结果、解释和后续迁移作为学习证据。</p></aside>
+<section aria-label="讲解与示例"><h2>最难的失败发生在成功之后</h2>
+ <p>Agent 请求外部系统创建任务，外部系统成功写入 T42，但连接断了，执行器没收到响应。此时本地没有任务 ID，若把 create 再执行一次，可能创建 T43。模型再次写出同一参数也不能保证幂等；关键是外部效果能否以稳定身份查回或去重。</p>
+ <p>检查点保存的是运行状态，不是全世界的原子快照。LangGraph 的持久化与故障容错文档说明了保存执行进度和失败后恢复的职责；外部副作用仍需按工具本身的语义处理。<a href="https://docs.langchain.com/oss/javascript/langgraph/persistence">资料：Persistence</a>，<a href="https://docs.langchain.com/oss/javascript/langgraph/fault-tolerance">资料：Fault tolerance</a>。</p>
+ <h2>为每个动作写执行账本</h2>
+ <p>在真实写入前，将 actionId、参数版本和稳定 idempotencyKey 持久化，并原子认领。外部系统若支持该键，同一逻辑动作的重试始终复用它；不能每次重试生成新键。得到成功响应或可靠读回后，再记录 succeeded 和结果 ID。未知状态先对账，不能展示失败后立即让模型无条件重来。</p><pre><code>type Effect =
+  | { state: &quot;prepared&quot;; key: string }
+  | { state: &quot;inFlight&quot;; key: string }
+  | { state: &quot;unknown&quot;; key: string }
+  | { state: &quot;succeeded&quot;; key: string; resultId: string }
+  | { state: &quot;rejected&quot;; key: string; reason: string };
+function recovery(effect: Effect): string {
+  switch (effect.state) {
+    case &quot;prepared&quot;: return &quot;claim_then_submit&quot;;
+    case &quot;inFlight&quot;:
+    case &quot;unknown&quot;: return &quot;reconcile_by_key&quot;;
+    case &quot;succeeded&quot;: return &quot;reuse_result&quot;;
+    case &quot;rejected&quot;: return &quot;report_rejection&quot;;
+  }
+}</code></pre><p>这段代码只表达恢复决策，不实现数据库锁或外部查询。inFlight 可能仍有 worker 在执行，因此对账之前要检查租约和当前运行所有者；不能看到它就重新提交。外部系统没有幂等能力时，可以用业务唯一键或可靠查询确认；既不能查询也不能去重时，必须保留“结果未知”并由用户核对。</p>
+ <h2>恢复也需要代码与协议版本</h2>
+ <p>检查点应记录 schemaVersion、runId、最后提交事件、待完成调用和预算。部署新版本后，旧检查点可能不兼容，应迁移、按旧版本继续或明确阻止恢复。重放不等于从每一行原地继续；有些运行时会重新执行某个节点。LangGraph 的中断文档特别提醒中断点之前的代码会重跑。<a href="https://docs.langchain.com/oss/javascript/langgraph/interrupts">资料：Interrupts</a>。</p>
+ <aside class="callout"><strong>不要承诺虚假的 exactly-once：</strong>只有你的存储事务、执行认领、外部幂等或业务去重共同满足条件时，才谈特定效果只发生一次。保存检查点本身不提供这种保证。</aside></section>
+<section id="practice"><h2>动手：让边界可观察</h2><ol><li>模拟四处崩溃：prepared 后尚未认领；外部成功但响应丢失；本地 succeeded 已保存但 UI 未收到；等待批准时进程退出。</li><li>给每处写出恢复后下一步，以及是否允许再次调用外部 create。</li><li>用本地 Map 充当支持幂等键的外部服务：同 key 返回同结果，调用两次核对结果数。</li></ol><p><strong>验收：</strong>第二种先对账或以同键重试，不能换键；第三种复用原结果；第四种恢复原审批快照。明确 Map 演示不证明生产持久性。</p>
+<p class="muted">建议先独立完成；本课代码用于理解机制。实验可在工作区新建笔记或 TypeScript 文件，真实 API 与依赖准备见 <a href="../labs/README.md">实验说明</a>。</p>
+<details><summary>完成后查看参考解</summary><p>prepared 尚未提交可原子认领后执行；外部成功响应丢失应按 key 查回 T42，若外部明确支持幂等重放则复用同 key；succeeded 已保存只需重新发送结果事件；待批准应恢复等待状态，不重复执行写入。Map 示例可用 <code>if (!map.has(key)) map.set(key, newId); return map.get(key)</code>，但多进程下必须改用外部支持或数据库唯一约束。</p></details></section>
+<section id="check"><h2>不看上文，检验一次</h2>
+<form class="quiz" data-quiz data-answer="0" data-correct="判断正确。再用自己的话解释原因，核对是否只是记住了选项。" data-incorrect="这个判断遗漏了一个边界。请重读题目，或展开解析核对。">
+<fieldset><legend>外部写入可能成功，但响应丢失，正确的第一反应是什么？</legend><label><input type="radio" name="answer" value="0"><span>按原动作身份对账</span></label><label><input type="radio" name="answer" value="1"><span>相信模型已经完成</span></label><label><input type="radio" name="answer" value="2"><span>生成新的键再重试</span></label></fieldset>
+<button type="submit">检查答案</button><button type="reset">重新作答</button><p class="feedback" data-feedback></p></form>
+<details><summary>答案与理由（无脚本时也可查看）</summary><p>答案：按原动作身份对账。未知结果必须核对；换新键可能产生重复副作用，模型文字不能确认外部状态。</p></details>
+</section>
+<section id="transfer"><h2>换个情境，还能做对吗？</h2><p>存储检查点和外部 API 不在同一事务里，能否仅靠 try/catch 保证只创建一条任务？</p>
+<details><summary>迁移题参考思路</summary><p>不能。try/catch 无法消除“外部提交后、本地保存前”崩溃窗口。需要外部幂等键、业务唯一性或可靠对账；没有这些条件只能承认结果未知，并限制自动重试。</p></details>
+<p>明天用 2 分钟，不看答案重述本课最容易出错的边界；一周后换一个项目名与失败时序再做一次。把你的判断、代码或失败结果发给老师追问，我会据此调整后续练习。</p></section>
+<section id="sources"><h2>原始资料与继续阅读</h2><ul><li><a href="https://docs.langchain.com/oss/javascript/langgraph/fault-tolerance">LangGraph Fault tolerance（主阅读）</a>：关注失败、持久化和恢复边界；将外部效果单独建模。</li><li><a href="https://docs.langchain.com/oss/javascript/langgraph/persistence">LangGraph Persistence</a>：区分检查点与外部系统真实状态。</li><li><a href="https://docs.langchain.com/oss/javascript/langgraph/interrupts">LangGraph Interrupts</a>：阅读副作用与节点重新执行的说明。</li></ul>
+<p class="muted">链接在 2026-09-22 核对；知识点采用官方资料，实验数据和课程代码为教学设计。未调用收费模型 API，未以这些示例完成生产环境验证。遇到 SDK 版本差异先查官方变更记录。</p></section>
+<footer><p>困惑可以直接追问：“请用一个失败 trace 解释本课的边界”，或贴出你的实验结果。不要把看懂参考答案当成已经能独立实现。</p><nav aria-label="课程导航">
+      <a href="../index.html#curriculum">完整课程</a>
+      <a href="0021-human-approval.html">← 0021 把人工确认做成程序约束</a>
+      <a href="0023-evaluation-datasets.html">0023 建立有代表性的评估任务集 →</a>
+      <a href="../reference/glossary.html">术语预览</a>
+    </nav></footer>
+</main></body></html>

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0029 · MCP 连接了什么，留下了什么 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><a class="skip-link" href="#main">跳到课程正文</a><main id="main" class="narrow">
+<nav aria-label="课程导航"><a href="../index.html#curriculum">课程地图</a><a href="../reference/glossary.html">术语速查</a><a href="../labs/README.md">实验入口</a></nav>
+<header><div class="eyebrow">10 · 协议与框架 / LESSON 0029</div><h1>MCP 连接了什么，留下了什么</h1><p class="lede">画出 MCP host、client、server 的责任，并保留应用自己的授权与评估。</p><div class="meta"><span>阅读 10–15 分钟 · 练习 20–40 分钟</span><span>来源核对：2026-09-22</span><span>应用侧 · TypeScript</span></div></header>
+<aside class="callout"><p><strong>本课交付：</strong>画出 MCP host、client、server 的责任，并保留应用自己的授权与评估。</p><p><strong>前置：</strong><a href="0007-tool-contracts.html">0007 为模型设计清晰的工具契约</a>、<a href="0008-safe-tool-execution.html">0008 实现一个受约束的只读工具</a>、<a href="0027-prompt-injection.html">0027 识别提示注入与信任边界</a>、<a href="0028-permissions-and-sandboxing.html">0028 工具权限与执行隔离</a></p><p>场景统一使用虚构文档与工单。代码注明示意时，需要接入你自己的项目上下文；本页不会发起模型调用。</p></aside>
+<section id="concept"><h2>先理解这个工程问题</h2>
+<p>MCP 把工具、资源和提示等能力的交流方式标准化。你的 Agent 应用是 host；host 为某个 server 管理一个 client；server 暴露专业能力。模型如何选工具、何时停止、谁批准写入、业务成功如何评分，仍需应用负责。连接了一个 MCP server，不等于自动获得一个可靠 Agent。</p>
+<p>本课核对的是 <a href="https://modelcontextprotocol.io/specification/2026-07-28/architecture">2026-07-28 规范架构</a>：请求携带协议版本与能力信息，server/discover 可用于发现能力。旧教程中的连接初始化与状态假设可能属于早期版本，不能直接与这里的消息字段拼接。工程接入要记录协议版本、SDK 版本和对端实际能力。</p>
+<p>工具描述帮助模型选择，但工具注解不替代安全策略；返回文本也是外部内容。宿主应把 server 的工具映射成内部契约，执行前验证租户与授权，执行后规范化错误和输出。根据<a href="https://modelcontextprotocol.io/specification/2026-07-28/server/tools">工具规范</a>区分协议错误与工具执行错误，避免把“业务找不到文档”当成网络故障反复重试。</p>
+<p>具体失败场景：本地 readDoc 原本检查租户，迁移到 MCP 后开发者只转发参数，误以为远程连接已经鉴权便足够。连接身份只能说明谁在调用，不自动证明他可以访问每个资源。桥接层与资源服务必须继续校验；下方接口仅是课程内部适配器，并非 MCP wire schema。</p></section>
+<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code>type InternalToolResult =
+  | { ok: true; evidenceIds: string[] }
+  | { ok: false; code: &quot;DENIED&quot; | &quot;NOT_FOUND&quot; | &quot;UNAVAILABLE&quot; };
+type ToolPort = {
+  readDoc(input: { tenantId: string; docId: string }): Promise&lt;InternalToolResult&gt;;
+};
+async function useDoc(port: ToolPort, tenantId: string, docId: string) {
+  const result = await port.readDoc({ tenantId, docId });
+  if (!result.ok) return { status: result.code };
+  return { status: &quot;ready&quot;, evidence: result.evidenceIds };
+}
+// 内部端口的实现可接本地函数或 MCP；授权契约不能随传输替换丢失。</code></pre></section>
+<section id="practice"><h2>动手：把判断变成证据</h2><ol><li>画一张“模型 → host → client → server → 文档存储”的责任图，标出两处权限检查。</li><li>用本地假 server 分别返回工具失败、协议异常和成功的空结果；映射为三个可区分的内部状态。</li><li>记录接入时要核对的协议版本、发现能力、认证方式、资源授权和输出大小限制。</li></ol><div class="callout"><p><strong>验收：</strong>能指出调用协议解决的互通问题和宿主仍承担的三项责任；迁移后越权读取测试继续失败。</p></div><details><summary>完成后再展开：参考解与检查思路</summary><p>两处检查分别在宿主的工具执行策略与文档服务的数据访问层。NOT_FOUND 是可解释的业务结果，不应无限重试；UNAVAILABLE 可以按预算重试；DENIED 需停止该能力或请求合适授权。协议解码失败单独记录为适配错误。</p></details></section>
+<section id="quiz"><h2>检索练习：不看上文作答</h2><form class="quiz" data-quiz data-answer="0" data-correct="判断正确。请再用自己的话解释理由。" data-incorrect="这个选择尚未守住本课的关键边界。请重新推理，或展开解析。"><fieldset><legend>MCP 接通之后，谁负责业务成功标准？</legend><label><input type="radio" name="answer" value="0"><span>应用自身负责</span></label><label><input type="radio" name="answer" value="1"><span>传输协议负责</span></label><label><input type="radio" name="answer" value="2"><span>工具名称负责</span></label></fieldset><button type="submit">检查答案</button><button type="reset">重新作答</button><p class="feedback" data-feedback></p></form><details><summary>答案与原因（离线、无脚本也可阅读）</summary><p>答案：应用自身负责。协议提供互通结构，应用仍需定义任务成功、权限以及停止条件。</p></details></section>
+<section id="transfer"><h2>换个场景再判断</h2><p>某 server 把 search 的输出从字符串改为结构化内容，如何避免所有调用者一起损坏？</p><details><summary>迁移题参考答案</summary><p>在适配器内做版本与结果校验，保留固定的内部结果类型；用契约测试和少量灰度流量验证新版本，错误时明确失败，不默默把未知对象当成空字符串。</p></details></section>
+<section id="reading"><h2>读原始资料</h2><p><strong>主阅读建议：</strong>主读 Architecture 的 Core Components 与 Capability Negotiation，再查 Tools 的错误处理。</p><ul><li><a href="https://modelcontextprotocol.io/specification/2026-07-28/architecture">MCP 2026-07-28 · Architecture</a></li><li><a href="https://modelcontextprotocol.io/specification/2026-07-28/server/tools">MCP 2026-07-28 · Tools</a></li></ul><p class="muted">上列来源于 2026-09-22 核对。练习中的数据、阈值和 TypeScript 内部接口为课程设计；产品接口、价格和可用性需在实际接入时按版本重核。</p></section>
+<footer><p>看懂不等于掌握。明天闭卷重做判断题，一周后用新的工单重做迁移题。把你的答案、运行结果或疑问发给我，我们一起定位下一步；未提交练习前，本课不记录为已掌握。</p><nav aria-label="前后课程"><a href="0028-permissions-and-sandboxing.html">← 0028 上一课</a><a href="0030-framework-migration.html">0030 下一课 →</a></nav></footer>
+</main></body></html>

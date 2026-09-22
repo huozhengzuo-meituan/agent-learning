@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0035 · 工具发现与代码执行式工具组合 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><a class="skip-link" href="#main">跳到课程正文</a><main id="main" class="narrow">
+<nav aria-label="课程导航"><a href="../index.html#curriculum">课程地图</a><a href="../reference/glossary.html">术语速查</a><a href="../labs/README.md">实验入口</a></nav>
+<header><div class="eyebrow">12 · 前沿能力扩展 / LESSON 0035</div><h1>工具发现与代码执行式工具组合</h1><p class="lede">按任务发现少量相关工具，并在受控执行环境中聚合数据后返回模型。</p><div class="meta"><span>阅读 10–15 分钟 · 练习 20–40 分钟</span><span>来源核对：2026-09-22</span><span>应用侧 · TypeScript</span></div></header>
+<aside class="callout"><p><strong>本课交付：</strong>按任务发现少量相关工具，并在受控执行环境中聚合数据后返回模型。</p><p><strong>前置：</strong><a href="0007-tool-contracts.html">0007 为模型设计清晰的工具契约</a>、<a href="0014-context-selection.html">0014 选择下一步真正需要的上下文</a>、<a href="0028-permissions-and-sandboxing.html">0028 工具权限与执行隔离</a>、<a href="0029-mcp-boundaries.html">0029 MCP 连接了什么，留下了什么</a>、<a href="0034-skills-and-progressive-disclosure.html">0034 Skills 与渐进式上下文加载</a></p><p>场景统一使用虚构文档与工单。代码注明示意时，需要接入你自己的项目上下文；本页不会发起模型调用。</p></aside>
+<section id="concept"><h2>先理解这个工程问题</h2>
+<p>工具库变大时，每次携带全部 schema 会占用上下文并增加选择负担。工具发现先让模型或路由器检索能力描述，再加载少量精确契约。发现结果只是候选，不能越过租户权限或启用未审核的服务器。还需要测试“该找的工具找不到”和“名字相近却选错工具”的情况。</p>
+<p><a href="https://www.anthropic.com/engineering/advanced-tool-use">Anthropic 的高级工具使用文章</a>介绍按需发现与程序化调用方向；发布时部分能力为 beta，当前可用性应查目标平台文档，不把历史状态当成永久状态。<a href="https://www.anthropic.com/engineering/code-execution-with-mcp">代码执行结合 MCP 的文章</a>展示另一种思路：先在执行环境处理大量结果，再只把需要的摘要交给模型。</p>
+<p>例如统计 500 个工单中的高优先级数量，不必让模型读完全部正文。代码调用受控工具、过滤并聚合，返回计数、采样证据 ID 与是否截断。保留审计轨迹能使结果可复核。程序执行不自动保证事实正确，字段语义、分页与时间范围仍要验证。</p>
+<p>具体失败场景：工具只返回前 100 个工单，程序把其中 12 个高优先级计为“全量 12 个”。这是分页覆盖错误，节省 token 不能掩盖它。下面代码要求调用方提供完整性标志，结果不完整时拒绝输出全量结论；工具网关和沙箱负责实际权限与隔离。</p></section>
+<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code>type Ticket = { id: string; priority: &quot;high&quot; | &quot;normal&quot; };
+function summarize(rows: Ticket[], complete: boolean) {
+  const high = rows.filter(row =&gt; row.priority === &quot;high&quot;);
+  return {
+    highPriorityCount: high.length,
+    scannedCount: rows.length,
+    scope: complete ? &quot;complete&quot; : &quot;partial&quot;,
+    evidenceIds: high.slice(0, 3).map(row =&gt; row.id)
+  };
+}
+console.log(summarize([
+  { id: &quot;T-1&quot;, priority: &quot;high&quot; },
+  { id: &quot;T-2&quot;, priority: &quot;normal&quot; }
+], false)); // 必须呈现 partial，不能声称扫描了所有工单</code></pre></section>
+<section id="practice"><h2>动手：把判断变成证据</h2><ol><li>为六个虚构工具写短描述，混入 readTicket 与 deleteTicket 两个名称相近的工具；只读任务应仅发现可读候选。</li><li>用固定工单数组实现聚合，分别输入完整分页与缺页数据，保留证据 ID。</li><li>比较“把全文给模型”与“先聚合再给模型”的输入体积；同时记录发现失败与聚合覆盖错误。</li></ol><div class="callout"><p><strong>验收：</strong>未授权工具不进入可执行集合；缺页结果显式标记 partial；性能比较附带质量与覆盖指标。</p></div><details><summary>完成后再展开：参考解与检查思路</summary><p>先从服务端授权集合中发现工具，再加载 schema。分页程序必须收集到无下一页或达到预算；达到预算时返回覆盖范围和未扫描说明。统计不需要工单正文，因此可以只请求 id/priority，减少数据暴露与传输。</p></details></section>
+<section id="quiz"><h2>检索练习：不看上文作答</h2><form class="quiz" data-quiz data-answer="1" data-correct="判断正确。请再用自己的话解释理由。" data-incorrect="这个选择尚未守住本课的关键边界。请重新推理，或展开解析。"><fieldset><legend>工具只返回部分数据，聚合结果应当如何标记？</legend><label><input type="radio" name="answer" value="0"><span>标为完整结果</span></label><label><input type="radio" name="answer" value="1"><span>标为部分结果</span></label><label><input type="radio" name="answer" value="2"><span>直接隐藏范围</span></label></fieldset><button type="submit">检查答案</button><button type="reset">重新作答</button><p class="feedback" data-feedback></p></form><details><summary>答案与原因（离线、无脚本也可阅读）</summary><p>答案：标为部分结果。局部统计可以有用，但必须保持覆盖边界，不能让模型误读为全量结论。</p></details></section>
+<section id="transfer"><h2>换个场景再判断</h2><p>代码执行返回一个数字却没有来源，如何让结果可审计又不把全部数据塞回上下文？</p><details><summary>迁移题参考答案</summary><p>返回查询范围、数据版本、扫描量、截断标志及可追溯的产物 ID；完整中间结果保存在有权限控制的产物存储，模型按需读取证据。避免只保存无法重现的口头结论。</p></details></section>
+<section id="reading"><h2>读原始资料</h2><p><strong>主阅读建议：</strong>先读 Code execution 的按需加载与数据过滤示例，只提取机制，不把案例节约百分比当成你的预期收益。</p><ul><li><a href="https://www.anthropic.com/engineering/advanced-tool-use">Anthropic · Advanced tool use，2025-11-24</a></li><li><a href="https://www.anthropic.com/engineering/code-execution-with-mcp">Anthropic · Code execution with MCP，2025-11-04</a></li></ul><p class="muted">上列来源于 2026-09-22 核对。练习中的数据、阈值和 TypeScript 内部接口为课程设计；产品接口、价格和可用性需在实际接入时按版本重核。</p></section>
+<footer><p>看懂不等于掌握。明天闭卷重做判断题，一周后用新的工单重做迁移题。把你的答案、运行结果或疑问发给我，我们一起定位下一步；未提交练习前，本课不记录为已掌握。</p><nav aria-label="前后课程"><a href="0034-skills-and-progressive-disclosure.html">← 0034 上一课</a><a href="0036-computer-use-agents.html">0036 下一课 →</a></nav></footer>
+</main></body></html>

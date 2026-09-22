@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0038 · 把实验变成可运行的服务 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><a class="skip-link" href="#main">跳到课程正文</a><main id="main" class="narrow">
+<nav aria-label="课程导航"><a href="../index.html#curriculum">课程地图</a><a href="../reference/glossary.html">术语速查</a><a href="../labs/README.md">实验入口</a></nav>
+<header><div class="eyebrow">13 · 运行与综合作品 / LESSON 0038</div><h1>把实验变成可运行的服务</h1><p class="lede">为一次 Agent 服务上线定义可回滚的发布单位和可观察的停止条件。</p><div class="meta"><span>阅读 10–15 分钟 · 练习 20–40 分钟</span><span>来源核对：2026-09-22</span><span>应用侧 · TypeScript</span></div></header>
+<aside class="callout"><p><strong>本课交付：</strong>为一次 Agent 服务上线定义可回滚的发布单位和可观察的停止条件。</p><p><strong>前置：</strong><a href="0024-graders-and-regressions.html">0024 评分器、重复试验与回归判断</a>、<a href="0025-tracing-and-observability.html">0025 用执行轨迹定位问题</a>、<a href="0026-cost-and-latency.html">0026 测量并优化任务成本与延迟</a>、<a href="0027-prompt-injection.html">0027 识别提示注入与信任边界</a>、<a href="0037-background-and-durable-agents.html">0037 后台 Agent 与持久任务生命周期</a></p><p>场景统一使用虚构文档与工单。代码注明示意时，需要接入你自己的项目上下文；本页不会发起模型调用。</p></aside>
+<section id="concept"><h2>先理解这个工程问题</h2>
+<p>Agent 的发布单位不只有前端包与服务端镜像。模型配置、提示、工具 schema、Skill、检索索引和评分器也会改变行为。记录这些版本，才能回答“昨天正常，今天错误从哪里开始”。同一代码版本搭配不同模型或知识快照，也可能是另一套系统。</p>
+<p>上线先使用虚构数据与离线契约测试，再进入受控试用和小比例灰度。对历史任务做影子评估可以观察回答变化，但影子流量不得执行真实写入。回滚应恢复一组兼容版本；如果新版本已产生外部副作用，回滚程序本身不会撤销它，必须另行对账。</p>
+<p><a href="https://sre.google/workbook/canarying-releases/">Google SRE 的 canary release 方法</a>提供逐步验证思路。Agent 还要观测证据正确率、批准绕过、任务中断与费用，不能只监控 HTTP 200。<a href="https://sre.google/sre-book/service-level-objectives/">SLO</a>应采用业务可理解的口径，例如“在约定预算内完成有依据的只读回答”。</p>
+<p>具体失败：新模型更爱调用工具，成功率接近，但每个任务多读十次资料，触发上游限流。灰度需同时限制总并发、每租户预算、工具频率，并有一键停止新任务的开关；停止后保留事件和在途动作状态，便于恢复与追责。</p></section>
+<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code>type ReleaseManifest = {
+  appCommit: string; modelConfig: string;
+  promptVersion: string; toolSchemaVersion: string;
+  skillVersion: string; indexSnapshot: string; evalSet: string;
+};
+const candidate: ReleaseManifest = {
+  appCommit: &quot;demo-commit-12&quot;, modelConfig: &quot;model-profile-b&quot;,
+  promptVersion: &quot;p4&quot;, toolSchemaVersion: &quot;t3&quot;,
+  skillVersion: &quot;s2&quot;, indexSnapshot: &quot;docs-2026-09-demo&quot;,
+  evalSet: &quot;release-eval-v2&quot;
+};
+// 将此清单与运行记录绑定；真实环境使用不可变版本或摘要。
+console.log(candidate);</code></pre></section>
+<section id="practice"><h2>动手：把判断变成证据</h2><ol><li>为当前练习项目生成一份发布清单，确保每个字段能够定位具体产物。</li><li>用同一任务集比较基线与候选，预先写明成功率、成本与违规动作的放量条件。</li><li>演练关闭新任务入口、观察在途任务、回滚清单和核对已发生写入四个步骤。</li></ol><div class="callout"><p><strong>验收：</strong>能追溯任一任务所用版本；预设阈值与评估口径；回滚计划区分代码恢复与副作用处理。</p></div><details><summary>完成后再展开：参考解与检查思路</summary><p>课程可设示例门槛：不允许未经批准的写入，固定评估集证据正确率不降低，预算超限任务不增加。阈值是练习设计，不是行业标准。小样本没有发现违规不代表风险为零，应保留已知限制与持续监控。</p></details></section>
+<section id="quiz"><h2>检索练习：不看上文作答</h2><form class="quiz" data-quiz data-answer="0" data-correct="判断正确。请再用自己的话解释理由。" data-incorrect="这个选择尚未守住本课的关键边界。请重新推理，或展开解析。"><fieldset><legend>哪项最需要立即停止继续放量？</legend><label><input type="radio" name="answer" value="0"><span>确认步骤被绕过</span></label><label><input type="radio" name="answer" value="1"><span>按钮颜色有变化</span></label><label><input type="radio" name="answer" value="2"><span>普通日志有增多</span></label></fieldset><button type="submit">检查答案</button><button type="reset">重新作答</button><p class="feedback" data-feedback></p></form><details><summary>答案与原因（离线、无脚本也可阅读）</summary><p>答案：确认步骤被绕过。审批绕过改变了行动权限边界，必须停止放量并核查已执行动作。</p></details></section>
+<section id="transfer"><h2>换个场景再判断</h2><p>回滚到旧提示后，错误记忆仍让 Agent 重复坏建议，说明缺了什么？</p><details><summary>迁移题参考答案</summary><p>发布与回滚没有覆盖持久状态。应对记忆与索引版本、污染条目和缓存做失效或修复，并验证恢复后的任务；不能只回滚无状态应用代码。</p></details></section>
+<section id="reading"><h2>读原始资料</h2><p><strong>主阅读建议：</strong>主读 Canarying 的信号与分析原则，再写自己的放量和回滚判据。</p><ul><li><a href="https://sre.google/workbook/canarying-releases/">Google SRE · Canarying Releases</a></li><li><a href="https://sre.google/sre-book/service-level-objectives/">Google SRE · Service Level Objectives</a></li></ul><p class="muted">上列来源于 2026-09-22 核对。练习中的数据、阈值和 TypeScript 内部接口为课程设计；产品接口、价格和可用性需在实际接入时按版本重核。</p></section>
+<footer><p>看懂不等于掌握。明天闭卷重做判断题，一周后用新的工单重做迁移题。把你的答案、运行结果或疑问发给我，我们一起定位下一步；未提交练习前，本课不记录为已掌握。</p><nav aria-label="前后课程"><a href="0037-background-and-durable-agents.html">← 0037 上一课</a><a href="0039-capstone-project.html">0039 下一课 →</a></nav></footer>
+</main></body></html>

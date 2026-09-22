@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="组合确定性检查与经过校准的模型评分，并用重复试验判断一次改动是否值得保留。">
+<title>0024 · 评分器、重复试验与回归判断 — TypeScript Agent 工程</title>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><a class="skip-link" href="#lesson">跳到课程正文</a>
+<main class="narrow" id="lesson">
+<nav aria-label="课程导航">
+      <a href="../index.html#curriculum">完整课程</a>
+      <a href="0023-evaluation-datasets.html">← 0023 建立有代表性的评估任务集</a>
+      <a href="0025-tracing-and-observability.html">0025 用执行轨迹定位问题 →</a>
+      <a href="../reference/glossary.html">术语预览</a>
+    </nav>
+<header><p class="eyebrow">08 · 可靠性与评估 · Lesson 0024</p>
+<h1>评分器、重复试验与回归判断</h1><p class="lede">组合确定性检查与经过校准的模型评分，并用重复试验判断一次改动是否值得保留。</p>
+<div class="meta"><span>阅读与判断 15–20 分钟</span><span>实验 20–40 分钟</span><span>资料核对：2026-09-22</span></div></header>
+<aside class="callout"><p><strong>前置：</strong>第 0023 课的任务集；基本比例、数组聚合。</p><p><strong>能力状态：</strong>通用工程机制；本文 TypeScript 是概念示意，未连接真实模型或生产存储。</p><p>本课服务于研发知识助手项目；页面备齐不代表已经掌握。以动手结果、解释和后续迁移作为学习证据。</p></aside>
+<section aria-label="讲解与示例"><h2>先看能明确判定的事实</h2>
+ <p>“答案很好”太模糊。把质量拆成证据支持、关键事实覆盖、越权、写入是否发生、耗时等维度。数据库是否新增两条重复任务可由程序检查；一段解释是否清楚可能需要人工或模型评分。不要让较好的文案分抵消未经批准的写入：本项目把安全边界设为硬门槛。</p>
+ <p>模型评分器也会被措辞、位置和被评文本中的指令影响。评分输入把候选回答当数据，规则与证据另放可信层；让评分器返回理由、证据位置和“不确定”。挑选一组人工已判定的正例、反例和边界例校准，版本变化后重新核对。LangSmith 的评估概念文档说明了不同 evaluator 和评估方式，适合用来设计这层分工。<a href="https://docs.langchain.com/langsmith/evaluation-concepts">资料：Evaluation concepts</a>。</p>
+ <h2>重复跑同一道题，才看得到不稳定</h2>
+ <p>每个任务运行多次，既报告所有 trial 的成功比例，也看一个任务是否每次都能通过。下例聚合三个任务、每题三次的结果。它计算的是这一小批试验的经验指标，不是对未来生产成功率的精确估计。</p><pre><code>const trials = [
+  [true, true, true],
+  [true, false, true],
+  [false, false, true]
+];
+const individual = trials.flat();
+const successRate = individual.filter(Boolean).length / individual.length;
+const anySuccess = trials.filter(t =&gt; t.some(Boolean)).length / trials.length;
+const allSuccess = trials.filter(t =&gt; t.every(Boolean)).length / trials.length;
+// successRate=6/9；至少一次成功=3/3；每次都成功=1/3。</code></pre><p>“三次里至少一次成功”和“三次必须全部成功”描述不同需求。用户只尝试一次的产品，不能用 best-of-many 的漂亮分数替代单次可靠性。Anthropic 的 2026 年评估文章用 pass@k 与 pass^k 讨论这种差别；估计方法与试验独立性需要写清，不能混用名称。<a href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents">资料：Non-determinism in evals</a>。</p>
+ <h2>比较改动时保留失败分布</h2>
+ <p>提示 A 与 B 使用同一题集、语料和工具版本，交错运行以减轻时间段差异。按任务配对查看从通过变失败和从失败变通过的题，不只看总平均。报告试验次数、样本大小、成本与延迟；小样本变化先当线索，增加重复或做置信区间分析，再决定是否发布。</p>
+ <p>一个可执行的课程门槛是：确定性安全检查全部通过；核心任务成功率不下降；新增能力达到事先定义的要求；成本和延迟仍在预算内。具体阈值要由你的应用需求制定，不能把本课练习分数当行业标准。评分器本身也要测试：参考正确答案要通过，明显错误答案应失败，合理的另一种解法不能无故扣分。</p></section>
+<section id="practice"><h2>动手：让边界可观察</h2><ol><li>不运行代码，先手算上面三个指标，再核对。</li><li>设计一个“引用 ID 合法但结论错误”的反例，看看只检查 ID 的 grader 会不会误判。</li><li>模拟 A、B 各 9 次试验，总成功数相同，但 B 多了一次未批准写入；写出是否接受 B 及原因。</li><li>为模型评分器写 3 条明确规则，并给“不足以判断”一个合法返回值。</li></ol><p><strong>验收：</strong>算出 2/3、1、1/3；不因总成功数相同而接受越权版本；能把 grader 误判和 Agent 失败区分开。</p>
+<p class="muted">建议先独立完成；本课代码用于理解机制。实验可在工作区新建笔记或 TypeScript 文件，真实 API 与依赖准备见 <a href="../labs/README.md">实验说明</a>。</p>
+<details><summary>完成后查看参考解</summary><p>第一行三次成功，第二行两次，第三行一次，共 6/9。每题至少成功一次，所以 anySuccess=1；只有第一题全部成功，allSuccess=1/3。B 违反硬门槛，应拒绝并回看执行轨迹；这不能被其他任务的更好文案抵消。</p><p>评分规则示例：每个发布日期必须被给定原文直接支持；不得把计划写成完成；原文冲突或缺失时返回 unknown 并指出缺口。把原文“计划发布”与回答“已经发布”作为必测反例，防止评分器只数链接。</p></details></section>
+<section id="check"><h2>不看上文，检验一次</h2>
+<form class="quiz" data-quiz data-answer="1" data-correct="判断正确。再用自己的话解释原因，核对是否只是记住了选项。" data-incorrect="这个判断遗漏了一个边界。请重读题目，或展开解析核对。">
+<fieldset><legend>三次尝试中只成功一次，对“每次都成功”的判断是什么？</legend><label><input type="radio" name="answer" value="0"><span>这个任务满足要求</span></label><label><input type="radio" name="answer" value="1"><span>这个任务未能通过</span></label><label><input type="radio" name="answer" value="2"><span>无法看出任何结论</span></label></fieldset>
+<button type="submit">检查答案</button><button type="reset">重新作答</button><p class="feedback" data-feedback></p></form>
+<details><summary>答案与理由（无脚本时也可查看）</summary><p>答案：这个任务未能通过。题目要求每次都通过，这个任务不满足；至少成功一次是另一个较宽的指标。</p></details>
+</section>
+<section id="transfer"><h2>换个情境，还能做对吗？</h2><p>更新了评分模型后总分提高 10%，Agent 代码完全没改。可以声称 Agent 能力提升吗？</p>
+<details><summary>迁移题参考思路</summary><p>不能。变化可能来自评分尺度漂移。对同一批已保存输出同时运行新旧评分器，与人工校准集比较；先确认评价标准一致，再重新评估 Agent 的真实变化。</p></details>
+<p>明天用 2 分钟，不看答案重述本课最容易出错的边界；一周后换一个项目名与失败时序再做一次。把你的判断、代码或失败结果发给老师追问，我会据此调整后续练习。</p></section>
+<section id="sources"><h2>原始资料与继续阅读</h2><ul><li><a href="https://docs.langchain.com/langsmith/evaluation-concepts">LangSmith Evaluation concepts（主阅读）</a>：关注 evaluator、实验与重复试验的组织方式。</li><li><a href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents">Anthropic Agent evals（2026-01-09）</a>：阅读 grader 类型与 pass@k/pass^k，注意一致性和探索能力的差别。</li></ul>
+<p class="muted">链接在 2026-09-22 核对；知识点采用官方资料，实验数据和课程代码为教学设计。未调用收费模型 API，未以这些示例完成生产环境验证。遇到 SDK 版本差异先查官方变更记录。</p></section>
+<footer><p>困惑可以直接追问：“请用一个失败 trace 解释本课的边界”，或贴出你的实验结果。不要把看懂参考答案当成已经能独立实现。</p><nav aria-label="课程导航">
+      <a href="../index.html#curriculum">完整课程</a>
+      <a href="0023-evaluation-datasets.html">← 0023 建立有代表性的评估任务集</a>
+      <a href="0025-tracing-and-observability.html">0025 用执行轨迹定位问题 →</a>
+      <a href="../reference/glossary.html">术语预览</a>
+    </nav></footer>
+</main></body></html>

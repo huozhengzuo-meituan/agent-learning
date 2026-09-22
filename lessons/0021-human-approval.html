@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="把人工批准绑定到具体动作和参数版本，在执行器中拦截未批准或已改变的写入。">
+<title>0021 · 把人工确认做成程序约束 — TypeScript Agent 工程</title>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><a class="skip-link" href="#lesson">跳到课程正文</a>
+<main class="narrow" id="lesson">
+<nav aria-label="课程导航">
+      <a href="../index.html#curriculum">完整课程</a>
+      <a href="0020-cancellation-and-concurrency.html">← 0020 取消、并发与过期结果</a>
+      <a href="0022-checkpoints-and-idempotency.html">0022 检查点、恢复与幂等 →</a>
+      <a href="../reference/glossary.html">术语预览</a>
+    </nav>
+<header><p class="eyebrow">07 · 产品交互 · Lesson 0021</p>
+<h1>把人工确认做成程序约束</h1><p class="lede">把人工批准绑定到具体动作和参数版本，在执行器中拦截未批准或已改变的写入。</p>
+<div class="meta"><span>阅读与判断 15–20 分钟</span><span>实验 20–40 分钟</span><span>资料核对：2026-09-22</span></div></header>
+<aside class="callout"><p><strong>前置：</strong>第 0008、0013、0020 课；服务端鉴权与状态机。</p><p><strong>能力状态：</strong>通用工程机制；本文 TypeScript 是概念示意，未连接真实模型或生产存储。</p><p>本课服务于研发知识助手项目；页面备齐不代表已经掌握。以动手结果、解释和后续迁移作为学习证据。</p></aside>
+<section aria-label="讲解与示例"><h2>批准一个明确动作，不是批准一段心情</h2>
+ <p>用户看到“要创建任务吗”并点了确认。模型随后把目标项目从 Atlas 改成 Boreal，标题也改了。若服务器只检查 <code>approved=true</code>，用户就批准了自己从未见过的内容。有效批准应绑定动作 ID、完整参数版本、批准者、有效期和作用域。</p>
+ <p>先由 Agent 生成候选动作，服务器完成参数校验和权限检查，再持久化不可变的审批快照。UI 展示目标、关键字段及影响；用户确认后，执行器使用已批准快照，不能重新向模型询问“最终参数”。参数变化就创建新的待批准版本。</p>
+ <h2>模型可以提议，执行器决定是否放行</h2>
+ <p>下面是服务端内的一段判定逻辑，action 与 approval 都应从服务器数据库读取，actor 应来自已验证的会话。请求方不能自己传一个 approvals 对象让服务器相信。示例用 actionId 与 revision 绑定不可变参数，生产可以补充规范化参数摘要以审计。</p><pre><code>type Action = {
+  id: string; revision: number; tenantId: string; ownerId: string;
+  state: &quot;pending&quot; | &quot;approved&quot; | &quot;consumed&quot;;
+};
+type Approval = {
+  actionId: string; revision: number; approverId: string; expiresAt: number;
+};
+function allowed(a: Action, p: Approval, actor: string, now: number) {
+  return a.state === &quot;approved&quot; &amp;&amp; a.id === p.actionId &amp;&amp;
+    a.revision === p.revision &amp;&amp; a.ownerId === actor &amp;&amp;
+    p.approverId === actor &amp;&amp; p.expiresAt &gt; now;
+}
+// 调用前先检查租户和工具权限。
+// 此布尔检查必须与“认领执行”合在数据库原子操作中，不能先查后改。</code></pre><p>简单布尔函数本身挡不住两个 worker 同时读取 approved 后重复执行；第 0022 课会处理执行认领与幂等。暂停和恢复同样要落盘，用户明天再打开仍应看到确切快照。LangGraph 的 interrupt 提供持久暂停与 resume，但节点恢复时会重新执行开始到中断点之前的代码，副作用不能随意放在它前面。<a href="https://docs.langchain.com/oss/javascript/langgraph/interrupts">资料：Interrupts</a>。</p>
+ <h2>人工确认不是所有工具的默认步骤</h2>
+ <p>本项目可允许授权范围内的只读检索自动执行，创建草稿任务采用一次具体批准。边界由产品政策定义，避免每个 read 都弹窗导致用户机械确认。一个确认也不代表永远授权所有写入。暂停、UI 展示和数据库持久状态需要共同设计，单有对话中的一句“用户已同意”不够。<a href="https://docs.langchain.com/oss/javascript/langgraph/persistence">资料：Persistence</a>。</p></section>
+<section id="practice"><h2>动手：让边界可观察</h2><ol><li>建立动作 A/revision=1：在 Atlas 创建“修复缓存”任务，生成确认卡片。</li><li>用户批准后，将动作 revision 改为 2，标题改成“发布版本”；调用判定函数。</li><li>再检查批准过期、另一个用户批准、已 consumed 三种情形。</li><li>在纸上画出两个 worker 同时执行布尔检查的时间线，找出重复写入窗口。</li></ol><p><strong>验收：</strong>原版本在正确用户和有效期内允许认领；四种变化都拒绝。能解释为什么 allowed=true 不能直接等于“业务写入已完成”。</p>
+<p class="muted">建议先独立完成；本课代码用于理解机制。实验可在工作区新建笔记或 TypeScript 文件，真实 API 与依赖准备见 <a href="../labs/README.md">实验说明</a>。</p>
+<details><summary>完成后查看参考解</summary><p>审批记录仍是 revision=1，而最新动作是 2，应拒绝并展示新快照。过期、错误批准者与 consumed 同样不满足条件。并发窗口位于“读 approved”和“改 consumed”之间；需要原子认领动作并为外部写入提供稳定幂等键。</p><p>UI 只有收到执行成功及结果 ID 后才能显示创建完成；批准成功仅表示可以开始执行。</p></details></section>
+<section id="check"><h2>不看上文，检验一次</h2>
+<form class="quiz" data-quiz data-answer="1" data-correct="判断正确。再用自己的话解释原因，核对是否只是记住了选项。" data-incorrect="这个判断遗漏了一个边界。请重读题目，或展开解析核对。">
+<fieldset><legend>用户批准后，目标项目被模型改写，执行器应该怎样处理？</legend><label><input type="radio" name="answer" value="0"><span>沿用旧的批准记录</span></label><label><input type="radio" name="answer" value="1"><span>要求批准新的版本</span></label><label><input type="radio" name="answer" value="2"><span>让模型解释后执行</span></label></fieldset>
+<button type="submit">检查答案</button><button type="reset">重新作答</button><p class="feedback" data-feedback></p></form>
+<details><summary>答案与理由（无脚本时也可查看）</summary><p>答案：要求批准新的版本。批准绑定具体快照。参数变化使原批准不再适用，必须确认新版本。</p></details>
+</section>
+<section id="transfer"><h2>换个情境，还能做对吗？</h2><p>批准后用户被移出项目，稍后 worker 才开始执行。旧批准能否绕过当前权限？</p>
+<details><summary>迁移题参考思路</summary><p>不能。批准是用户对动作的意图，不会创造项目访问权限。执行前重新验证当前授权，权限撤销就停止；同时保持审批记录供用户理解为什么任务没有执行。</p></details>
+<p>明天用 2 分钟，不看答案重述本课最容易出错的边界；一周后换一个项目名与失败时序再做一次。把你的判断、代码或失败结果发给老师追问，我会据此调整后续练习。</p></section>
+<section id="sources"><h2>原始资料与继续阅读</h2><ul><li><a href="https://docs.langchain.com/oss/javascript/langgraph/interrupts">LangGraph Interrupts（主阅读）</a>：阅读恢复时节点重跑和副作用规则；理解暂停不等于自动幂等。</li><li><a href="https://docs.langchain.com/oss/javascript/langgraph/persistence">LangGraph Persistence</a>：理解跨进程恢复为什么需要持久检查点。</li></ul>
+<p class="muted">链接在 2026-09-22 核对；知识点采用官方资料，实验数据和课程代码为教学设计。未调用收费模型 API，未以这些示例完成生产环境验证。遇到 SDK 版本差异先查官方变更记录。</p></section>
+<footer><p>困惑可以直接追问：“请用一个失败 trace 解释本课的边界”，或贴出你的实验结果。不要把看懂参考答案当成已经能独立实现。</p><nav aria-label="课程导航">
+      <a href="../index.html#curriculum">完整课程</a>
+      <a href="0020-cancellation-and-concurrency.html">← 0020 取消、并发与过期结果</a>
+      <a href="0022-checkpoints-and-idempotency.html">0022 检查点、恢复与幂等 →</a>
+      <a href="../reference/glossary.html">术语预览</a>
+    </nav></footer>
+</main></body></html>

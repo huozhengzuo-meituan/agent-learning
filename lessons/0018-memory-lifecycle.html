@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="设计可追溯、可修正、可删除的记忆记录，避免旧信息和模型猜测变成永久事实。">
+<title>0018 · 记忆的写入、读取与失效 — TypeScript Agent 工程</title>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><a class="skip-link" href="#lesson">跳到课程正文</a>
+<main class="narrow" id="lesson">
+<nav aria-label="课程导航">
+      <a href="../index.html#curriculum">完整课程</a>
+      <a href="0017-rag-and-citations.html">← 0017 让回答与检索证据对应</a>
+      <a href="0019-agent-web-ui.html">0019 把执行事件映射为前端状态 →</a>
+      <a href="../reference/glossary.html">术语预览</a>
+    </nav>
+<header><p class="eyebrow">06 · 知识与记忆 · Lesson 0018</p>
+<h1>记忆的写入、读取与失效</h1><p class="lede">设计可追溯、可修正、可删除的记忆记录，避免旧信息和模型猜测变成永久事实。</p>
+<div class="meta"><span>阅读与判断 15–20 分钟</span><span>实验 20–40 分钟</span><span>资料核对：2026-09-22</span></div></header>
+<aside class="callout"><p><strong>前置：</strong>第 0013–0014 课；授权作用域与上下文选择。</p><p><strong>能力状态：</strong>通用工程机制；本文 TypeScript 是概念示意，未连接真实模型或生产存储。</p><p>本课服务于研发知识助手项目；页面备齐不代表已经掌握。以动手结果、解释和后续迁移作为学习证据。</p></aside>
+<section aria-label="讲解与示例"><h2>保存得久，不代表值得保存</h2>
+ <p>用户说“这个项目暂时使用 Node 22”，Agent 若记成“用户永远只用 Node 22”，下一次处理另一个仓库就会误导。记忆的难点不是存 JSON，而是确定内容属于谁、适用于什么、证据在哪里、何时失效，以及当前请求是否应该读取。</p>
+ <p>LangChain 将线程内状态与跨线程记忆分开，还讨论同步写入和后台写入的取舍。本课用更窄的项目事实记录来练习这些机制。<a href="https://docs.langchain.com/oss/javascript/concepts/memory">资料：Memory overview</a>。后台提取可能减少用户等待，却可能在用户刚刚纠正信息后把旧版本再次写入，所以版本与删除标记仍不可省。</p>
+ <h2>先提候选，再按政策落库</h2>
+ <p>我们的示例应用采用明确政策：仅保存用户指定的长期偏好或已读回的项目事实；助手推测只放当前运行状态。它是课程项目的选择，不是所有产品的唯一规则。记忆必须保留 sourceEventId；派生摘要不能反过来伪装成用户原话。</p><pre><code>type Memory = {
+  id: string; tenantId: string; userId: string; projectId: string;
+  text: string; sourceEventId: string; revision: number;
+  state: &quot;active&quot; | &quot;superseded&quot; | &quot;deleted&quot;;
+  expiresAt: number | null;
+};
+type Scope = Pick&lt;Memory, &quot;tenantId&quot; | &quot;userId&quot; | &quot;projectId&quot;&gt;;
+function canRecall(m: Memory, scope: Scope, now: number): boolean {
+  return m.state === &quot;active&quot; &amp;&amp;
+    m.tenantId === scope.tenantId &amp;&amp; m.userId === scope.userId &amp;&amp;
+    m.projectId === scope.projectId &amp;&amp;
+    (m.expiresAt === null || m.expiresAt &gt; now);
+}</code></pre><h2>生命周期比自动提取更重要</h2>
+ <ol class="flow"><li class="step">候选<br>来源与作用域</li><li class="step">验证<br>是否值得保存</li><li class="step">读取<br>相关、有效、授权</li><li class="step">修订或删除<br>同步索引与缓存</li></ol>
+ <p>用户把项目运行环境从 22 改为 24：用新记录替代旧记录，把旧版标记 superseded，不能让向量搜索同时返回两条矛盾事实且不注明版本。用户要求删除时，主存储、索引和派生缓存都要处理；保留必要的无内容墓碑可防止后台旧任务复活记录。生产中的具体保留政策应明确说明。</p>
+ <p>同一项目记忆也会过时：依赖版本可以短期有效并在使用前从仓库核对，沟通偏好可以较长期保存。记忆工具只是读写界面，不自动解决信任与隔离。Claude 的记忆工具文档展示了由应用管理存储的模式，可用于比较职责边界。<a href="https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool">资料：Memory tool</a>。</p></section>
+<section id="practice"><h2>动手：让边界可观察</h2><ol><li>构造项目 P 的一条 active 记忆，来源为“用户确认 Node 22”。另写一条助手猜测“用户喜欢所有新技术”。</li><li>让 active 记忆分别在同项目、别项目、到期时间之后被读取；解释候选猜测为何不应按本应用政策落库。</li><li>模拟用户修正为 Node 24，再模拟晚到的旧后台任务试图覆盖最新记录。</li></ol><p><strong>验收：</strong>只有同作用域且未到期的 active 记录进入候选上下文。覆盖操作比较 revision；旧任务不能覆盖新状态或复活已删除记录。</p>
+<p class="muted">建议先独立完成；本课代码用于理解机制。实验可在工作区新建笔记或 TypeScript 文件，真实 API 与依赖准备见 <a href="../labs/README.md">实验说明</a>。</p>
+<details><summary>完成后查看参考解</summary><p>首次记录 revision=1；修正生成 revision=2，将旧信息标成 superseded。后台任务携带 expectedRevision=1 时，当前已为 2，写入应失败并重新读取。删除同样增加版本，再清理索引；后台任务重新读取时看到 deleted，终止写入。仅保存主表却不清理检索缓存，会造成“删了还记得”。</p><p>长期保留应有来源和用途。模型的推测既没有用户确认也没有环境读回证据，按本课政策不得成为长期事实。</p></details></section>
+<section id="check"><h2>不看上文，检验一次</h2>
+<form class="quiz" data-quiz data-answer="1" data-correct="判断正确。再用自己的话解释原因，核对是否只是记住了选项。" data-incorrect="这个判断遗漏了一个边界。请重读题目，或展开解析核对。">
+<fieldset><legend>旧后台任务在用户删除记忆之后到达，应如何处理？</legend><label><input type="radio" name="answer" value="0"><span>按旧内容重新写入</span></label><label><input type="radio" name="answer" value="1"><span>校验版本拒绝复活</span></label><label><input type="radio" name="answer" value="2"><span>仅凭相似度定去留</span></label></fieldset>
+<button type="submit">检查答案</button><button type="reset">重新作答</button><p class="feedback" data-feedback></p></form>
+<details><summary>答案与理由（无脚本时也可查看）</summary><p>答案：校验版本拒绝复活。删除也属于需要版本保护的状态变化；晚到任务不能绕过墓碑或版本检查。</p></details>
+</section>
+<section id="transfer"><h2>换个情境，还能做对吗？</h2><p>用户在新项目里采用了另一套代码风格。你怎样避免“个性化”变成跨项目干扰？</p>
+<details><summary>迁移题参考思路</summary><p>将通用沟通偏好与项目规范分不同作用域，读取时优先当前明确指令和项目来源。不要将单次项目选择上升成全局偏好；必要时将旧记录失效或缩小范围。</p></details>
+<p>明天用 2 分钟，不看答案重述本课最容易出错的边界；一周后换一个项目名与失败时序再做一次。把你的判断、代码或失败结果发给老师追问，我会据此调整后续练习。</p></section>
+<section id="sources"><h2>原始资料与继续阅读</h2><ul><li><a href="https://docs.langchain.com/oss/javascript/concepts/memory">LangChain Memory overview（主阅读）</a>：重点比较作用域，以及 hot path 和 background 写入。</li><li><a href="https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool">Claude Memory tool</a>：关注应用负责的存储与校验；工具版本以提供商当前文档为准。</li></ul>
+<p class="muted">链接在 2026-09-22 核对；知识点采用官方资料，实验数据和课程代码为教学设计。未调用收费模型 API，未以这些示例完成生产环境验证。遇到 SDK 版本差异先查官方变更记录。</p></section>
+<footer><p>困惑可以直接追问：“请用一个失败 trace 解释本课的边界”，或贴出你的实验结果。不要把看懂参考答案当成已经能独立实现。</p><nav aria-label="课程导航">
+      <a href="../index.html#curriculum">完整课程</a>
+      <a href="0017-rag-and-citations.html">← 0017 让回答与检索证据对应</a>
+      <a href="0019-agent-web-ui.html">0019 把执行事件映射为前端状态 →</a>
+      <a href="../reference/glossary.html">术语预览</a>
+    </nav></footer>
+</main></body></html>

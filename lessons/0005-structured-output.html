@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>0005 · 把模型输出变成可校验的数据 — Agent 工程学习</title>
+<meta name="description" content="把自然语言回答转换为可校验的数据，并明确区分结构正确与业务正确。">
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><a class="skip-link" href="#main">跳到正文</a><main class="narrow" id="main">
+<nav aria-label="课程导航"><a href="../index.html#curriculum">全部课程</a><a href="../reference/glossary.html">术语速查</a></nav>
+<header><p class="eyebrow">02 · 可用的模型接口 · LESSON 0005</p><h1>把模型输出变成可校验的数据</h1>
+<p class="lede">把自然语言回答转换为可校验的数据，并明确区分结构正确与业务正确。</p><p class="meta"><span>阅读与检查 15–20 分钟</span><span>动手任务 30 分钟</span><span>资料核对 2026-09-22</span></p></header>
+<aside class="callout"><strong>这一课的具体成果</strong><p>设计一个“结论 + 文档 ID + 是否缺资料”的返回结构，再用两个非法样本检验它。</p><p><strong>前置知识：</strong>理解 TypeScript 类型和第 0004 课的任务规格；知道 JSON.parse 的基本用途。</p></aside>
+<section><h2>类型声明不会检查网络数据</h2><p>把模型输出写成 <code>JSON.parse(text) as Answer</code>，只是告诉 TypeScript 相信你的断言。它没有验证返回对象是否真的有 answer 字段，也没有防止 citations 变成数字。模型输出和任何外部 API 响应一样，进入业务逻辑之前需要运行时校验。</p><p>第一层检查是合法 JSON；第二层是字段类型与取值；第三层才是业务规则。<a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse">JSON.parse</a>处理第一层；它不能证明某个文档 ID 存在，更不能证明回答忠实于该文档。学会拆开这三层，错误处理才会有针对性。</p></section><section><h2>让生成与校验使用同一份结构</h2><p><a href="https://ai-sdk.dev/docs/ai-sdk-core/generating-structured-data">当前 AI SDK 的结构化输出文档</a>使用 generateText 的 output 配合 Output.object 指定结构。下面的 schema 同时表达给模型的输出形状和应用要接收的数据类型。具体模型对结构约束的支持仍需核对，结构化生成不是取消错误处理的理由。</p><p>字段应对应产品需要。我们的答案只需要结论、引用文档 ID 和缺资料标记，不需要模型自行生成“系统确认正确”的标签。模型报告的不确定性可作为信息，但不替代程序或评估的质量判断。让每个字段都有消费者，避免为了看起来完整而增加无法验证的字段。</p></section><section><h2>校验通过，还没完成验收</h2><p>即使 citations 是合法字符串数组，里面也可能出现从未提供的 button-v99。业务层应将引用与本轮允许的文档集合核对。这个检查能够拒绝不存在的来源，但不能自动判断一段答案是否由真实来源支持；后者需要进一步规则或评估。</p><p>失败也要分类：输出无法解析、schema 不匹配、引用不存在，以及结构合法但事实不成立。它们需要不同修复。不要在解析失败时默默返回空对象，那会把上游失败推迟成下游难以理解的 UI 错误。第 0011 课会区分可重试失败与需要修改输入的失败。</p></section>
+<section><h2>把过程放进 TypeScript</h2><p>官方结构化输出接口片段，未执行真实 API。model 由第 0003 课的服务端适配器配置；这里单独展示结构与引用检查。</p><pre><code class="language-ts">import { generateText, Output } from &quot;ai&quot;;
+import { z } from &quot;zod&quot;;
+
+const AnswerSchema = z.object({
+  answer: z.string(),
+  citations: z.array(z.string()),
+  missingEvidence: z.boolean(),
+});
+
+// model 是预先配置的服务端模型实例
+async function generateAnswer(model: Parameters&lt;typeof generateText&gt;[0][&quot;model&quot;]) {
+  const { output } = await generateText({
+    model,
+    output: Output.object({ schema: AnswerSchema }),
+    prompt: &quot;依据 button-v2：loading=true 阻止重复点击。解释 loading。&quot;,
+    maxRetries: 0,
+  });
+
+  const allowedIds = new Set([&quot;button-v2&quot;]);
+  if (output.citations.some(id =&gt; !allowedIds.has(id))) {
+    throw new Error(&quot;回答引用了本轮未提供的文档&quot;);
+  }
+  return output;
+}</code></pre><p>示例中的 schema 只做必要的形状校验；它没有规定“非缺资料答案至少一条引用”，也没有核对引用对结论的支持程度。这两点就是你接下来要补上的业务验收。</p></section>
+<section id="practice"><h2>动手：用坏样本检验返回契约</h2><ol><li>设计三个 JSON 样本：citations 是数字；citations 包含 button-v99；结论说“不阻止点击”但引用 button-v2。</li><li>对每个样本指出最早能发现问题的层：解析、结构或业务语义。</li><li>补写规则：missingEvidence 为 false 时，citations 至少有一条；不要把“至少一条”误写为“事实一定正确”。</li></ol><div class="callout"><strong>验收条件</strong><p>三种失败能被分别描述；能说明类型断言不等于运行时校验；引用有效与结论正确没有混为一谈。</p></div>
+<details><summary>做过以后，再看参考答案</summary><p>citations 为数字属于 schema 失败；button-v99 属于引用集合检查失败；与文档相反的结论属于事实支持检查失败。补充业务规则可以写为 <code>if (!output.missingEvidence &amp;&amp; output.citations.length === 0) throw new Error('缺少引用')</code>。这仍需要对实际回答与文档进行核对。</p></details></section>
+<section><h2>停下来，从记忆里回答</h2><form class="quiz" data-quiz data-answer="0" data-correct="正确。schema 能检查它明确表达的约束，不能自动证明事实。" data-incorrect="分开结构与语义。一个格式完全正确的答案仍可能事实错误。">
+<fieldset><legend>返回对象通过了 schema 校验，能直接证明什么？</legend><label><input type="radio" name="answer" value="0">字段结构有效</label><label><input type="radio" name="answer" value="1">业务事实正确</label><label><input type="radio" name="answer" value="2">引用证据充分</label></fieldset><button type="submit">检查答案</button><button type="reset">重新作答</button><p class="feedback" data-feedback></p></form>
+<details><summary>答案与理由</summary><p>应选“字段结构有效”。这里的 schema 只定义字段和类型，业务事实与证据支持需要进一步检查。</p></details></section>
+<section><h2>换个需求，还能用吗？</h2><p>模型返回工单分类 <code>{category: 'bug', priority: 'P0'}</code> 且结构合法。可以立刻触发全员告警吗？</p><details><summary>迁移题参考要点</summary><p>还不能。优先级的业务标准、证据与操作权限需要额外判断；P0 字符串符合枚举不意味着事故严重度已经确认。可以先把它当作候选分类，再走明确的业务审核或规则判断。</p></details></section>
+<section><h2>原始资料与主阅读</h2><ol><li><a href="https://ai-sdk.dev/docs/ai-sdk-core/generating-structured-data">AI SDK · Generating Structured Data</a>：主阅读：generateText + Output.object 与输出校验。</li><li><a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse">MDN · JSON.parse</a>：核对 JSON 解析的职责与错误边界。</li></ol><p class="muted">本课场景与练习使用虚构组件文档和工单。资料核对日期为 2026-09-22；文中的 SDK 片段未执行真实模型调用，后续实践须对照项目锁定版本与账号实际支持的模型。</p></section>
+<footer><p>有不清楚的地方，直接回到对话问老师。把你的判断、代码或执行轨迹贴回来，我会根据实际表现调整下一步；读过本课不等于已经掌握。</p><nav aria-label="相邻课程"><a href="0004-prompts-as-specifications.html">上一课 · 把提示写成可验证的任务规格</a><a href="0006-streaming-basics.html">下一课 · 理解流式输出的事件边界</a></nav></footer>
+</main></body></html>

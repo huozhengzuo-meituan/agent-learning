@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="对同一组问题测量检索命中，并让 Agent 按证据缺口决定是否继续搜索。">
+<title>0015 · 先建立一个能测量的检索基线 — TypeScript Agent 工程</title>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><a class="skip-link" href="#lesson">跳到课程正文</a>
+<main class="narrow" id="lesson">
+<nav aria-label="课程导航">
+      <a href="../index.html#curriculum">完整课程</a>
+      <a href="0014-context-selection.html">← 0014 选择下一步真正需要的上下文</a>
+      <a href="0016-embeddings-and-ranking.html">0016 向量检索、分块与排序 →</a>
+      <a href="../reference/glossary.html">术语预览</a>
+    </nav>
+<header><p class="eyebrow">05 · 上下文工程 · Lesson 0015</p>
+<h1>先建立一个能测量的检索基线</h1><p class="lede">对同一组问题测量检索命中，并让 Agent 按证据缺口决定是否继续搜索。</p>
+<div class="meta"><span>阅读与判断 15–20 分钟</span><span>实验 20–40 分钟</span><span>资料核对：2026-09-22</span></div></header>
+<aside class="callout"><p><strong>前置：</strong>第 0014 课；工具输入输出和预算限制。</p><p><strong>能力状态：</strong>通用工程机制；本文 TypeScript 是概念示意，未连接真实模型或生产存储。</p><p>本课服务于研发知识助手项目；页面备齐不代表已经掌握。以动手结果、解释和后续迁移作为学习证据。</p></aside>
+<section aria-label="讲解与示例"><h2>检索是 Agent 的观察工具</h2>
+ <p>“固定取 top-5 再回答”只能作为比较起点。研发问题可能先需要找到模块名称，再根据错误码检索，再打开具体版本的原文。现代 Agent 可以根据上一轮结果改变查询和读取对象。LangChain 当前检索文档同时讨论固定两步、Agent 自主检索和混合方法，差异在于谁决定检索时机与次数。<a href="https://docs.langchain.com/oss/javascript/deepagents/retrieval">资料：Retrieval</a>。</p>
+ <p>本课先做一个可解释的词项命中基线，是为了判断后续向量、重排和自主搜索是否真的改善了结果。它不是最终架构，也不是中文通用搜索算法。把每个查询和文档事先写成词项数组，可以暂时避开分词实现，专注理解测量。</p><pre><code>type Doc = { id: string; terms: string[] };
+function retrieve(query: string[], docs: Doc[], k: number): string[] {
+  const wanted = new Set(query);
+  return docs.map(doc =&gt; ({ id: doc.id,
+    score: [...new Set(doc.terms)].filter(t =&gt; wanted.has(t)).length
+  })).filter(x =&gt; x.score &gt; 0)
+    .sort((a, b) =&gt; b.score - a.score || a.id.localeCompare(b.id))
+    .slice(0, k).map(x =&gt; x.id);
+}
+function recallAtK(found: string[], relevant: string[]): number | null {
+  if (relevant.length === 0) return null;
+  const hits = new Set(found);
+  return new Set(relevant.filter(id =&gt; hits.has(id))).size /
+    new Set(relevant).size;
+}</code></pre><h2>把“继续搜索”变成有依据的决定</h2>
+ <p>给模型 <code>search(query)</code> 和 <code>read(id)</code> 两个工具。search 返回标题、短摘要、更新时间与授权内的 ID；read 返回原文片段和版本。模型可以自主选词，但执行器限制最大查询次数和返回大小。权限过滤在结果交给模型之前完成，不能把其他租户的命中交给模型自行忽略。</p>
+ <ol class="flow"><li class="step">查询症状<br>“构建失败”</li><li class="step">读候选文档<br>找到错误码 E42</li><li class="step">改写检索<br>“E42 项目版本”</li><li class="step">核对证据<br>回答或说明不足</li></ol>
+ <p>每一步记录 query、候选、真正读取的文档和停止原因。不能用“Agent 搜了更多次”替代质量指标。固定检索与自主检索都跑同一数据集，同时比较命中、最终答案、延迟和工具成本。按需加载的思路及额外探索成本在 Anthropic 的上下文文章中有明确讨论。<a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents">资料：Just-in-time context</a>。</p>
+ <p>没有标准答案的题不要混入 recall 分母：它们用来测试“没有证据时是否停止编造”。召回失败与回答失败要分开：相关文档都没取到时，先修检索；取得证据却答错，再看选择与生成。</p></section>
+<section id="practice"><h2>动手：让边界可观察</h2><ol><li>构造 D1=[构建,E42,插件]、D2=[构建,缓存]、D3=[登录,令牌]。查询 [构建]，k=1，相关集合=[D1,D2]。</li><li>计算 Recall@1，再用 [E42] 检索，相关集合改为 [D1]。</li><li>补一个语义相近但词项不同的问题“编译报错”，观察零命中。</li><li>画出自主检索时的两轮查询，给它设置最多 3 次查询；补一条证据不足时的最终回复。</li></ol><p><strong>验收：</strong>三个结果分别为 0.5、1、0（第三题相关集合非空）。能说明词项不同导致的失败，并没有把零命中直接变成事实性回答。</p>
+<p class="muted">建议先独立完成；本课代码用于理解机制。实验可在工作区新建笔记或 TypeScript 文件，真实 API 与依赖准备见 <a href="../labs/README.md">实验说明</a>。</p>
+<details><summary>完成后查看参考解</summary><p>第一题并列按 ID 排序，返回 D1，只覆盖两个相关文档之一。第二题唯一命中 D1。第三题提示需要同义词、向量召回或模型改写查询，而不是盲目增加 k。自主策略可先搜症状，再利用读到的 E42 缩小范围；到达预算仍无可靠原文时回答“目前未找到支持原因的文档”，附实际已查范围。</p></details></section>
+<section id="check"><h2>不看上文，检验一次</h2>
+<form class="quiz" data-quiz data-answer="1" data-correct="判断正确。再用自己的话解释原因，核对是否只是记住了选项。" data-incorrect="这个判断遗漏了一个边界。请重读题目，或展开解析核对。">
+<fieldset><legend>相关文档共 4 篇，返回结果覆盖其中 3 篇，Recall 是多少？</legend><label><input type="radio" name="answer" value="0"><span>等于四分之一</span></label><label><input type="radio" name="answer" value="1"><span>等于四分之三</span></label><label><input type="radio" name="answer" value="2"><span>等于四分之四</span></label></fieldset>
+<button type="submit">检查答案</button><button type="reset">重新作答</button><p class="feedback" data-feedback></p></form>
+<details><summary>答案与理由（无脚本时也可查看）</summary><p>答案：等于四分之三。Recall 的分母是相关集合大小；这里是 3/4。返回结果里可能还有不相关项，那影响 precision。</p></details>
+</section>
+<section id="transfer"><h2>换个情境，还能做对吗？</h2><p>自主检索最终正确率提高，但 p95 延迟翻倍。你会据此完全取消固定检索吗？</p>
+<details><summary>迁移题参考思路</summary><p>不会。按问题类型分析：简单单跳问题可先做快速检索，出现证据缺口才授权追加探索。保留同一评估集，用质量、延迟和成本共同决定路由，而非按架构名称选型。</p></details>
+<p>明天用 2 分钟，不看答案重述本课最容易出错的边界；一周后换一个项目名与失败时序再做一次。把你的判断、代码或失败结果发给老师追问，我会据此调整后续练习。</p></section>
+<section id="sources"><h2>原始资料与继续阅读</h2><ul><li><a href="https://docs.langchain.com/oss/javascript/deepagents/retrieval">LangChain Retrieval（主阅读）</a>：阅读 2-Step、Agentic 与 Hybrid 三种方式，重点看控制权与成本。</li><li><a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents">Anthropic Context engineering</a>：阅读按需读取段落，联系 search/read 两种工具粒度。</li></ul>
+<p class="muted">链接在 2026-09-22 核对；知识点采用官方资料，实验数据和课程代码为教学设计。未调用收费模型 API，未以这些示例完成生产环境验证。遇到 SDK 版本差异先查官方变更记录。</p></section>
+<footer><p>困惑可以直接追问：“请用一个失败 trace 解释本课的边界”，或贴出你的实验结果。不要把看懂参考答案当成已经能独立实现。</p><nav aria-label="课程导航">
+      <a href="../index.html#curriculum">完整课程</a>
+      <a href="0014-context-selection.html">← 0014 选择下一步真正需要的上下文</a>
+      <a href="0016-embeddings-and-ranking.html">0016 向量检索、分块与排序 →</a>
+      <a href="../reference/glossary.html">术语预览</a>
+    </nav></footer>
+</main></body></html>

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="阻止旧运行覆盖新 UI，并区分停止接收、停止计算与撤销已发生动作。">
+<title>0020 · 取消、并发与过期结果 — TypeScript Agent 工程</title>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><a class="skip-link" href="#lesson">跳到课程正文</a>
+<main class="narrow" id="lesson">
+<nav aria-label="课程导航">
+      <a href="../index.html#curriculum">完整课程</a>
+      <a href="0019-agent-web-ui.html">← 0019 把执行事件映射为前端状态</a>
+      <a href="0021-human-approval.html">0021 把人工确认做成程序约束 →</a>
+      <a href="../reference/glossary.html">术语预览</a>
+    </nav>
+<header><p class="eyebrow">07 · 产品交互 · Lesson 0020</p>
+<h1>取消、并发与过期结果</h1><p class="lede">阻止旧运行覆盖新 UI，并区分停止接收、停止计算与撤销已发生动作。</p>
+<div class="meta"><span>阅读与判断 15–20 分钟</span><span>实验 20–40 分钟</span><span>资料核对：2026-09-22</span></div></header>
+<aside class="callout"><p><strong>前置：</strong>第 0019 课；Promise、AbortController 与组件卸载。</p><p><strong>能力状态：</strong>通用工程机制；本文 TypeScript 是概念示意，未连接真实模型或生产存储。</p><p>本课服务于研发知识助手项目；页面备齐不代表已经掌握。以动手结果、解释和后续迁移作为学习证据。</p></aside>
+<section aria-label="讲解与示例"><h2>取消有三个不同边界</h2>
+ <p>用户提交 A，紧接着提交 B；B 先返回，A 后返回。若每次响应都直接 setState，A 会覆盖用户真正关心的 B。另一种情况是用户点了停止，浏览器断开连接，服务端却继续检索甚至已经完成写入。你需要分别定义：停止展示、请求取消运行、补偿已发生的副作用。</p>
+ <p><code>AbortController</code> 可以向支持 signal 的操作发出中止信号，但不能让已经完成的外部动作倒退。DOM 规范定义的是取消机制，不是数据库事务回滚。<a href="https://dom.spec.whatwg.org/#interface-abortcontroller">资料：DOM AbortController</a>。</p>
+ <h2>先用运行身份挡住晚到结果</h2>
+ <p>下面是“最新一次请求拥有 UI”的单界面策略。generation 只解决本页面的结果归属；服务端还要有独立 runId、持久取消标记，以及工具开始前的检查。并行运行可改成每个 run 一张独立卡片，不能共享一个 generation 造成互相覆盖。</p><pre><code>let generation = 0;
+let active: AbortController | undefined;
+async function loadLatest(query: string, render: (text: string) =&gt; void) {
+  const own = ++generation;
+  active?.abort();
+  const controller = new AbortController();
+  active = controller;
+  try {
+    const response = await fetch(&quot;/api/search&quot;, {
+      method: &quot;POST&quot;, headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+      body: JSON.stringify({ query }), signal: controller.signal
+    });
+    if (!response.ok) throw new Error(`HTTP_${response.status}`);
+    const text = await response.text();
+    if (own === generation &amp;&amp; !controller.signal.aborted) render(text);
+  } catch (error) {
+    if (own === generation &amp;&amp; !controller.signal.aborted) throw error;
+  }
+}
+function cancelLatest() { ++generation; active?.abort(); }</code></pre><p>即使旧请求不响应 abort，generation 仍挡住它覆盖新结果；真正的网络错误不能统一吞掉，调用方应展示错误。对于流式 UI，要在每个事件进入 reducer 时检查 runId，而不是只在最后一次响应检查。</p>
+ <h2>服务端确认才能显示“任务已停止”</h2>
+ <p>取消请求先把 run 标为 cancelling；执行器观察标记后停止发起新的模型调用与工具，再报告 cancelled。已提交的外部操作可能进入 completed 或 unknown，要读回后报告真实结果。持久任务的恢复和检查点边界，可对照 LangGraph 的故障容错机制理解。<a href="https://docs.langchain.com/oss/javascript/langgraph/fault-tolerance">资料：Fault tolerance</a>。</p>
+ <p>状态提示应具体：“已停止生成，写入状态正在核对”比“已全部取消”准确。取消也可能与批准同时到达，服务器应使用事务或原子状态转移决定哪个事件先被接受，而不是让两个 HTTP 请求各自读旧状态后同时成功。</p></section>
+<section id="practice"><h2>动手：让边界可观察</h2><ol><li>用两个可手动 resolve 的 Promise 模拟 A、B，让 B 先完成、A 后完成；不发网络请求。</li><li>把 fetch 临时换为这两个测试 Promise，并观察 generation 检查前后的渲染顺序。</li><li>写出“用户取消时写入已成功，但响应丢失”的 UI 文案和服务端处理。</li></ol><p><strong>验收：</strong>最终仅展示 B；取消后晚到文字不进入当前 UI；能说清 abort 没有证明外部写入被撤销。</p>
+<p class="muted">建议先独立完成；本课代码用于理解机制。实验可在工作区新建笔记或 TypeScript 文件，真实 API 与依赖准备见 <a href="../labs/README.md">实验说明</a>。</p>
+<details><summary>完成后查看参考解</summary><p>发起 A 时 own=1，发起 B 时 own=2；B 完成时与 generation 相等，A 后完成时不等，被忽略。调用 cancelLatest 又增加 generation，所以当前请求的晚到结果也失去 UI 所有权。</p><p>副作用场景先标记结果未知，按 actionId 向外部系统读回。若已成功，就报告“生成已停止；此前提交的写入已完成”，提供真实结果。需要撤销时走独立的补偿动作，不能假装取消信号已经回滚。</p></details></section>
+<section id="check"><h2>不看上文，检验一次</h2>
+<form class="quiz" data-quiz data-answer="0" data-correct="判断正确。再用自己的话解释原因，核对是否只是记住了选项。" data-incorrect="这个判断遗漏了一个边界。请重读题目，或展开解析核对。">
+<fieldset><legend>浏览器成功 abort 请求，能够据此确认哪一点？</legend><label><input type="radio" name="answer" value="0"><span>本地取消意图发出</span></label><label><input type="radio" name="answer" value="1"><span>全部外部动作回滚</span></label><label><input type="radio" name="answer" value="2"><span>所有后台任务终止</span></label></fieldset>
+<button type="submit">检查答案</button><button type="reset">重新作答</button><p class="feedback" data-feedback></p></form>
+<details><summary>答案与理由（无脚本时也可查看）</summary><p>答案：本地取消意图发出。abort 只表达本地取消意图及支持操作的中止；后台和外部副作用需要各自的确认机制。</p></details>
+</section>
+<section id="transfer"><h2>换个情境，还能做对吗？</h2><p>同一用户开了两个标签页，同时向同一会话发送不同需求。仅靠组件里的 generation 足够吗？</p>
+<details><summary>迁移题参考思路</summary><p>不够。它只能保护一个页面。服务端要制定每会话单活动运行、串行排队或显式分支的策略，并用 runId 和状态版本约束提交；两个页面各自同步当前服务端状态。</p></details>
+<p>明天用 2 分钟，不看答案重述本课最容易出错的边界；一周后换一个项目名与失败时序再做一次。把你的判断、代码或失败结果发给老师追问，我会据此调整后续练习。</p></section>
+<section id="sources"><h2>原始资料与继续阅读</h2><ul><li><a href="https://dom.spec.whatwg.org/#interface-abortcontroller">DOM AbortController（主阅读）</a>：关注 signal 与 abort 算法：取消通知不是外部事务回滚。</li><li><a href="https://docs.langchain.com/oss/javascript/langgraph/fault-tolerance">LangGraph Fault tolerance</a>：联系持久运行在中断、超时和恢复时的行为边界。</li></ul>
+<p class="muted">链接在 2026-09-22 核对；知识点采用官方资料，实验数据和课程代码为教学设计。未调用收费模型 API，未以这些示例完成生产环境验证。遇到 SDK 版本差异先查官方变更记录。</p></section>
+<footer><p>困惑可以直接追问：“请用一个失败 trace 解释本课的边界”，或贴出你的实验结果。不要把看懂参考答案当成已经能独立实现。</p><nav aria-label="课程导航">
+      <a href="../index.html#curriculum">完整课程</a>
+      <a href="0019-agent-web-ui.html">← 0019 把执行事件映射为前端状态</a>
+      <a href="0021-human-approval.html">0021 把人工确认做成程序约束 →</a>
+      <a href="../reference/glossary.html">术语预览</a>
+    </nav></footer>
+</main></body></html>

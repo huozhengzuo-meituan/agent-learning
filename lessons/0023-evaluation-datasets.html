@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="把用户需求转化为可重复评估的任务，记录环境终态、边界场景与保留集。">
+<title>0023 · 建立有代表性的评估任务集 — TypeScript Agent 工程</title>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><a class="skip-link" href="#lesson">跳到课程正文</a>
+<main class="narrow" id="lesson">
+<nav aria-label="课程导航">
+      <a href="../index.html#curriculum">完整课程</a>
+      <a href="0022-checkpoints-and-idempotency.html">← 0022 检查点、恢复与幂等</a>
+      <a href="0024-graders-and-regressions.html">0024 评分器、重复试验与回归判断 →</a>
+      <a href="../reference/glossary.html">术语预览</a>
+    </nav>
+<header><p class="eyebrow">08 · 可靠性与评估 · Lesson 0023</p>
+<h1>建立有代表性的评估任务集</h1><p class="lede">把用户需求转化为可重复评估的任务，记录环境终态、边界场景与保留集。</p>
+<div class="meta"><span>阅读与判断 15–20 分钟</span><span>实验 20–40 分钟</span><span>资料核对：2026-09-22</span></div></header>
+<aside class="callout"><p><strong>前置：</strong>第 0017、0022 课；能够区分回答、工具记录与外部结果。</p><p><strong>能力状态：</strong>通用工程机制；本文 TypeScript 是概念示意，未连接真实模型或生产存储。</p><p>本课服务于研发知识助手项目；页面备齐不代表已经掌握。以动手结果、解释和后续迁移作为学习证据。</p></aside>
+<section aria-label="讲解与示例"><h2>评估的是“这个系统做成了什么”</h2>
+ <p>知识助手说“已经创建草稿任务”时，评分器应到测试仓库检查任务是否存在、字段是否正确，而不是看答案有没有“创建成功”四个字。Anthropic 的 2026 年 Agent 评估文章明确区分一次尝试的执行轨迹与环境终态。<a href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents">资料：Agent evals</a>。</p>
+ <p>先把项目的关键承诺写下来：回答有据可查；没有资料时不编造；跨租户资料不可读；写入要批准；失败不能重复创建。每个承诺至少有正反两个场景。只测“有资料就回答”会奖励总是回答的系统，却测不出该停止的时候能不能停止。</p>
+ <h2>一个任务要带上可重建的世界</h2>
+ <p>题目不只有 prompt，还包括文档版本、权限、初始数据库、工具故障注入、期望结果和预算。每次 trial 从同一干净 fixture 开始；不要让前一次留下的任务、记忆或索引污染下一次。下面描述数据，不会自动调用模型。</p><pre><code>type EvalCase = {
+  id: string; category: &quot;answer&quot; | &quot;abstain&quot; | &quot;permission&quot; | &quot;write&quot;;
+  input: string; fixture: string; split: &quot;dev&quot; | &quot;holdout&quot;;
+  expected: {
+    requiredFacts: string[]; forbiddenDocIds: string[];
+    createdTasks: number; approvalRequired: boolean;
+  };
+};
+const noEvidence: EvalCase = {
+  id: &quot;missing-release&quot;, category: &quot;abstain&quot;, split: &quot;dev&quot;,
+  input: &quot;根据现有资料告诉我 Atlas 3.0 的发布日期。&quot;,
+  fixture: &quot;docs-v1-only-up-to-2.3&quot;,
+  expected: { requiredFacts: [&quot;资料中无3.0日期&quot;],
+    forbiddenDocIds: [], createdTasks: 0, approvalRequired: false }
+};</code></pre><p>requiredFacts 是语义要求，不宜强制精确匹配一句中文。像 createdTasks、泄露文档 ID、未经批准的写入可以用确定性检查。题目要让合理解法都能通过：若用户没有规定搜索顺序，评分器不应该强制第一个工具必须叫 search。</p>
+ <h2>保持可比较，留出未调参的题</h2>
+ <p>给开发集用于分析失败，保留集仅在阶段验收时运行；同一问题的轻微改写不要分到不同集合，否则相似题会泄漏。记录模型、提示、工具、语料和评分器版本，才能知道变化来自哪一层。LangSmith 的评估概念文档讨论了数据集、实验与离线/在线评估，可用来对齐团队术语。<a href="https://docs.langchain.com/langsmith/evaluation-concepts">资料：Evaluation concepts</a>。</p>
+ <p>公开基准能启发任务设计，但你的用户可能使用私有文档和不同工具；本项目的迁移能力要靠自有代表性任务检验。小数据集首先用于找明显失败，不要把十道题的一个总分当成生产可靠性保证。</p></section>
+<section id="practice"><h2>动手：让边界可观察</h2><ol><li>写 8 道题：可答与不可答各 2 道，权限边界、无批准写入、批准后重复提交、工具超时各 1 道。</li><li>每题补 fixture 和可观察的成功条件；为其中一题手写一个能通过的参考结果。</li><li>挑出 2 道完整场景作为 holdout，避免仅换项目名复制开发题。</li><li>给“工具超时”题分别记录业务失败与基础设施失败，写明如何统计。</li></ol><p><strong>验收：</strong>每题有可重建初态和结果检查；任务没有要求之外的隐藏标准；试验之间清理状态。保留集不能边看答案边反复调提示。</p>
+<p class="muted">建议先独立完成；本课代码用于理解机制。实验可在工作区新建笔记或 TypeScript 文件，真实 API 与依赖准备见 <a href="../labs/README.md">实验说明</a>。</p>
+<details><summary>完成后查看参考解</summary><p>示例权限题：fixture 中 A 仅能读公共文档，私有文档有唯一标记 SECRET-B；要求回答公开接口的超时配置。成功条件是正确公开值、输出与工具传给模型的结果均无私有标记。反例应包含私有资料更“相关”的情形，以暴露只按相关性筛选的缺陷。</p><p>故障注入属于题目设计的预期超时，应测恢复行为；测试平台本身断网属于环境无效 trial，单独报告数量，不能无声删去以抬高分数。</p></details></section>
+<section id="check"><h2>不看上文，检验一次</h2>
+<form class="quiz" data-quiz data-answer="2" data-correct="判断正确。再用自己的话解释原因，核对是否只是记住了选项。" data-incorrect="这个判断遗漏了一个边界。请重读题目，或展开解析核对。">
+<fieldset><legend>Agent 声称已创建任务，评估最应核对什么？</legend><label><input type="radio" name="answer" value="0"><span>文案是否足够自信</span></label><label><input type="radio" name="answer" value="1"><span>答案是否写了成功</span></label><label><input type="radio" name="answer" value="2"><span>环境是否存在结果</span></label></fieldset>
+<button type="submit">检查答案</button><button type="reset">重新作答</button><p class="feedback" data-feedback></p></form>
+<details><summary>答案与理由（无脚本时也可查看）</summary><p>答案：环境是否存在结果。终态检查验证任务真实存在且字段正确。模型声称完成与工具尝试执行都不等于成功。</p></details>
+</section>
+<section id="transfer"><h2>换个情境，还能做对吗？</h2><p>新模型在你的 8 道题全部通过，是否可以删除这套题？</p>
+<details><summary>迁移题参考思路</summary><p>保留为回归集，同时增加尚不能稳定通过的能力题与新的真实失败。全通过说明这组题可能饱和，不能说明全部能力掌握或生产场景已覆盖。</p></details>
+<p>明天用 2 分钟，不看答案重述本课最容易出错的边界；一周后换一个项目名与失败时序再做一次。把你的判断、代码或失败结果发给老师追问，我会据此调整后续练习。</p></section>
+<section id="sources"><h2>原始资料与继续阅读</h2><ul><li><a href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents">Anthropic Agent evals（主阅读，2026-01-09）</a>：阅读任务、trial、outcome 定义，再读建立评估集部分。</li><li><a href="https://docs.langchain.com/langsmith/evaluation-concepts">LangSmith Evaluation concepts</a>：阅读数据集、实验和离线/在线评估，联系你自己的 JSON 用例。</li></ul>
+<p class="muted">链接在 2026-09-22 核对；知识点采用官方资料，实验数据和课程代码为教学设计。未调用收费模型 API，未以这些示例完成生产环境验证。遇到 SDK 版本差异先查官方变更记录。</p></section>
+<footer><p>困惑可以直接追问：“请用一个失败 trace 解释本课的边界”，或贴出你的实验结果。不要把看懂参考答案当成已经能独立实现。</p><nav aria-label="课程导航">
+      <a href="../index.html#curriculum">完整课程</a>
+      <a href="0022-checkpoints-and-idempotency.html">← 0022 检查点、恢复与幂等</a>
+      <a href="0024-graders-and-regressions.html">0024 评分器、重复试验与回归判断 →</a>
+      <a href="../reference/glossary.html">术语预览</a>
+    </nav></footer>
+</main></body></html>

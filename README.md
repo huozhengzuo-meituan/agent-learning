@@ -1,15 +1,21 @@
 # Agent 应用工程学习工作区
 
-在浏览器打开 `index.html` 开始。第一课在 `lessons/0001-who-controls-the-next-step.html`；页面可直接本地打开，无需安装依赖或联网调用模型。
+在浏览器打开 `index.html` 开始。第一课在 `lessons/0001-agent-boundaries.html`；页面可直接本地打开，无需安装依赖或联网调用模型。
 
 ```sh
 open /Users/huozhengzuo/study/agent-learning/index.html
 ```
 
+完整课程已备齐：40 课、13 模块、6 张速查、6 组离线实验与综合项目任务书。课程重心与资料日期见 FRESHNESS.md。
+
 ## 目录
 
 - MISSION.md：学习原因、可观察目标与边界。
-- ROADMAP.md：约 12 周的能力路线和验收建议。
+- ROADMAP.md：约 14–16 周的能力路线和验收建议。
+- FRESHNESS.md：前沿资料、产品/版本边界与核对日期。
+- CAPSTONE.md：综合项目任务、评分和迁移验收。
+- labs/：TypeScript 练习、参考实现、测试与虚构语料。
+- GLOSSARY.md：仅包含经用户展示理解的术语，初始为空。
 - RESOURCES.md：核对过的原始资料与按需阅读入口。
 - NOTES.md：偏好、教学状态与下次起点。
 - lessons/：一次一个目标的短课与互动练习。

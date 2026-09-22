@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="把事实性断言映射到实际读取过的证据，并区分“引用存在”与“证据足以支持”。">
+<title>0017 · 让回答与检索证据对应 — TypeScript Agent 工程</title>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><a class="skip-link" href="#lesson">跳到课程正文</a>
+<main class="narrow" id="lesson">
+<nav aria-label="课程导航">
+      <a href="../index.html#curriculum">完整课程</a>
+      <a href="0016-embeddings-and-ranking.html">← 0016 向量检索、分块与排序</a>
+      <a href="0018-memory-lifecycle.html">0018 记忆的写入、读取与失效 →</a>
+      <a href="../reference/glossary.html">术语预览</a>
+    </nav>
+<header><p class="eyebrow">06 · 知识与记忆 · Lesson 0017</p>
+<h1>让回答与检索证据对应</h1><p class="lede">把事实性断言映射到实际读取过的证据，并区分“引用存在”与“证据足以支持”。</p>
+<div class="meta"><span>阅读与判断 15–20 分钟</span><span>实验 20–40 分钟</span><span>资料核对：2026-09-22</span></div></header>
+<aside class="callout"><p><strong>前置：</strong>第 0015–0016 课；结构化输出与运行时校验。</p><p><strong>能力状态：</strong>引用与支持性分层是通用设计；Claude citations 是特定提供商能力。示例为未接 API 的概念代码。</p><p>本课服务于研发知识助手项目；页面备齐不代表已经掌握。以动手结果、解释和后续迁移作为学习证据。</p></aside>
+<section aria-label="讲解与示例"><h2>带着引用也可能答错</h2>
+ <p>知识助手回答：“所有项目均已升级至 2.3［文档 A］。”文档 A 实际只写“Atlas 项目计划在下周升级”。链接是真的，结论仍是错的。要分别检查<strong>来源存在、模型本次可用、断言得到支持、适用范围一致</strong>。厂商的引用能力可以给出文档位置，例如 Claude 的 citations 支持结构化定位；它不能替你判定原始资料是否正确或已过期。<a href="https://platform.claude.com/docs/en/build-with-claude/citations">资料：Citations</a>。</p>
+ <p>Agentic retrieval 中，search 命中一个标题不等于 read 读到了证据。把真正读取并授权的片段存到本次 evidence map，再允许模型输出这些 ID。工具结果应包含 title、位置、版本、取回时间和原文片段。用户打开引用时，仍要执行访问检查。</p>
+ <h2>先做机器可判定的检查</h2>
+ <p>下面是最小结构检查：事实断言必须关联当前证据集合中的 ID。它只能挡住凭空生成的编号，不能判断“计划”是否被误读成“完成”。JSON 本身仍需先按第 0005 课的方式验证，TypeScript 类型不会自动校验模型返回的字符串。</p><pre><code>type Claim = { text: string; evidenceIds: string[] };
+type Evidence = { id: string; text: string; version: string };
+function validateCitations(claims: Claim[], evidence: Evidence[]) {
+  const allowed = new Set(evidence.map(e =&gt; e.id));
+  return claims.map(claim =&gt; ({
+    text: claim.text,
+    validReferences: claim.evidenceIds.length &gt; 0 &amp;&amp;
+      claim.evidenceIds.every(id =&gt; allowed.has(id))
+  }));
+}
+// validReferences=true 仅说明引用 ID 合法，不能输出 grounded=true。</code></pre><h2>再检查含义与证据缺口</h2>
+ <p>对重要断言单独比对主体、时间、条件和否定词。可让模型评分器辅助标记“支持／矛盾／信息不足”，再抽样人工校准；关键业务字段尽量做确定性核对。Agent 评估文章把研究型任务的支持性、覆盖度和来源质量分开讨论。<a href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents">资料：Research agent evals</a>。</p>
+ <p>有了“信息不足”分支，Agent 可以针对缺口继续检索。例如文档证明“Atlas 已升级”，却无法证明“所有项目”，下一次搜索应寻找全量项目清单及状态。预算耗尽时缩小结论或说明未知，不把工具调用失败变成“没有相关资料”。</p>
+ <aside class="callout"><strong>可读的交付：</strong>“Atlas 已升级至 2.3［发布记录 §2，版本 r8］；其他项目状态暂未核实。”把观察、推断和未知分别写清楚，引用紧挨它支持的断言。</aside></section>
+<section id="practice"><h2>动手：让边界可观察</h2><ol><li>证据 E1：“Atlas 已升级 2.3。”E2：“Boreal 计划升级 2.3。”为“两个项目均已升级”创建一个 Claim。</li><li>先运行 ID 检查，再人工检查语义。将 E2 改成 E9 观察两类失败的不同。</li><li>改写为两条有独立证据的断言，并写出还需要什么证据才能确认 Boreal 完成。</li></ol><p><strong>验收：</strong>你能展示一个“引用合法但结论不支持”的例子；修正后的回答保留“计划”语义，不把未来时态改成完成时态。</p>
+<p class="muted">建议先独立完成；本课代码用于理解机制。实验可在工作区新建笔记或 TypeScript 文件，真实 API 与依赖准备见 <a href="../labs/README.md">实验说明</a>。</p>
+<details><summary>完成后查看参考解</summary><p>原 Claim 引用 E1、E2 时编号检查通过，语义检查应失败或标记信息不足，因为 E2 只给出计划。换成 E9 后编号检查直接失败。参考回答：“Atlas 已升级至 2.3［E1］；Boreal 的记录目前仅说明升级计划［E2］。尚需实际发布结果或部署版本读回确认。”</p><p>这里的读回结果是对环境状态的观察；模型写出“已完成”的一句话本身不能成为新证据。</p></details></section>
+<section id="check"><h2>不看上文，检验一次</h2>
+<form class="quiz" data-quiz data-answer="2" data-correct="判断正确。再用自己的话解释原因，核对是否只是记住了选项。" data-incorrect="这个判断遗漏了一个边界。请重读题目，或展开解析核对。">
+<fieldset><legend>引用 ID 全部合法，能够立即证明什么？</legend><label><input type="radio" name="answer" value="0"><span>来源永远不会过期</span></label><label><input type="radio" name="answer" value="1"><span>全部结论完全正确</span></label><label><input type="radio" name="answer" value="2"><span>编号属于已读集合</span></label></fieldset>
+<button type="submit">检查答案</button><button type="reset">重新作答</button><p class="feedback" data-feedback></p></form>
+<details><summary>答案与理由（无脚本时也可查看）</summary><p>答案：编号属于已读集合。编号检查只说明引用集合正确。语义支持、来源可信度、版本适用性都需要独立判断。</p></details>
+</section>
+<section id="transfer"><h2>换个情境，还能做对吗？</h2><p>模型把工具报错“403 forbidden”解释为“文档不存在”。你如何改工具契约与答案校验？</p>
+<details><summary>迁移题参考思路</summary><p>把 not_found、forbidden、timeout 明确建模为不同结果，禁止将失败当空结果。答案应说明无法访问，不能声称文档不存在。评估集增加工具报错与真实空集的对照案例。</p></details>
+<p>明天用 2 分钟，不看答案重述本课最容易出错的边界；一周后换一个项目名与失败时序再做一次。把你的判断、代码或失败结果发给老师追问，我会据此调整后续练习。</p></section>
+<section id="sources"><h2>原始资料与继续阅读</h2><ul><li><a href="https://platform.claude.com/docs/en/build-with-claude/citations">Claude Citations（主阅读）</a>：理解文档位置与引用块；具体支持类型以采用的模型和 API 版本为准。</li><li><a href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents">Anthropic Agent evals</a>：阅读 Evaluating research agents，区分支持性和覆盖度。</li></ul>
+<p class="muted">链接在 2026-09-22 核对；知识点采用官方资料，实验数据和课程代码为教学设计。未调用收费模型 API，未以这些示例完成生产环境验证。遇到 SDK 版本差异先查官方变更记录。</p></section>
+<footer><p>困惑可以直接追问：“请用一个失败 trace 解释本课的边界”，或贴出你的实验结果。不要把看懂参考答案当成已经能独立实现。</p><nav aria-label="课程导航">
+      <a href="../index.html#curriculum">完整课程</a>
+      <a href="0016-embeddings-and-ranking.html">← 0016 向量检索、分块与排序</a>
+      <a href="0018-memory-lifecycle.html">0018 记忆的写入、读取与失效 →</a>
+      <a href="../reference/glossary.html">术语预览</a>
+    </nav></footer>
+</main></body></html>

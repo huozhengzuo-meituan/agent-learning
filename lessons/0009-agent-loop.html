@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>0009 · 亲手读懂并补完 Agent 循环 — Agent 工程学习</title>
+<meta name="description" content="沿着“调用模型 → 执行工具 → 追加结果 → 再调用模型”读懂一个最小 Agent 循环。">
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><a class="skip-link" href="#main">跳到正文</a><main class="narrow" id="main">
+<nav aria-label="课程导航"><a href="../index.html#curriculum">全部课程</a><a href="../reference/glossary.html">术语速查</a></nav>
+<header><p class="eyebrow">03 · 工具与执行循环 · LESSON 0009</p><h1>亲手读懂并补完 Agent 循环</h1>
+<p class="lede">沿着“调用模型 → 执行工具 → 追加结果 → 再调用模型”读懂一个最小 Agent 循环。</p><p class="meta"><span>阅读与检查 15–20 分钟</span><span>动手任务 40 分钟</span><span>资料核对 2026-09-22</span></p></header>
+<aside class="callout"><strong>这一课的具体成果</strong><p>补全离线循环中的结果回传，看到第二轮决定如何因工具结果而改变。</p><p><strong>前置知识：</strong>完成第 0008 课，能区分模型输入、动作请求和可信工具实现。</p></aside>
+<section><h2>循环把一次调用变成持续行动</h2><p>一个最小 Agent 的核心是把环境反馈放回下一轮上下文。第一轮模型不知道文档内容，于是请求 readDoc；宿主执行读取并记录结果；第二轮模型看到内容，才有依据回答。<a href="https://ai-sdk.dev/docs/agents/overview">AI SDK 的 Agent 概述</a>将循环的职责包括上下文维护和停止控制。今天先看最小机制，不急着引入复杂框架。</p><p>如果执行了工具却没有把结果交给下一轮，模型只知道“我曾要求读取”，不知道读取成功与否。另一个常见错误是只传工具结果，却丢掉原问题和调用关联，导致结果难以解释。一次完整轨迹需要保留目标、动作以及对应观察。</p></section><section><h2>调用与结果要成对</h2><p>每个工具调用应有关联标识，结果回到对应调用。真实供应商对消息格式与顺序有各自要求；下面的类型是课程自定义协议，便于理解，不应直接作为某家 API 的请求体。示例每轮最多一个只读工具，不覆盖并行调用、流式参数或重放恢复。</p><p>在模型调用之前，应用要准备本轮可见历史；在工具执行之前，应用要校验动作；在执行之后，应用要如实记录成功或失败。模型生成的文本不能替代这些程序步骤。下一轮收到 NOT_AVAILABLE 时，可以解释资料不足，也可以在可用工具范围内选择别的办法。</p></section><section><h2>用离线模型观察反馈的作用</h2><p>本工作区的<a href="../labs/README.md">离线 TypeScript 实验</a>使用预设决策模拟模型，不需要 API Key。它可以稳定重现“请求工具—读取结果—回答”的顺序，适合断点观察与补代码。它证明循环逻辑是否正确，不证明真实模型会在陌生问题上做出正确判断。</p><p>先把一次工具结果传递正确，再扩展停止预算与错误处理。一次学习只改变一个关键步骤，你才知道行为改善来自哪里。后续替换成真实模型适配器时，仍应保留离线的确定性测试，作为运行时控制逻辑的回归基线。</p></section>
+<section><h2>把过程放进 TypeScript</h2><p>以下是课程自定义的简化循环片段，未连接提供商。decide 在本课是可信离线替身；真实模型输出接入此类型前必须运行时校验。</p><pre><code class="language-ts">type Decision =
+  | { kind: &quot;answer&quot;; text: string }
+  | { kind: &quot;call&quot;; id: string; name: &quot;readDoc&quot;; input: unknown };
+type Message =
+  | { role: &quot;user&quot;; text: string }
+  | { role: &quot;assistant&quot;; decision: Decision }
+  | { role: &quot;tool&quot;; callId: string; result: unknown };
+
+async function run(
+  question: string,
+  decide: (history: readonly Message[]) =&gt; Promise&lt;Decision&gt;,
+  execute: (input: unknown) =&gt; Promise&lt;unknown&gt;,
+) {
+  const history: Message[] = [{ role: &quot;user&quot;, text: question }];
+  for (let step = 0; step &lt; 4; step++) {
+    const decision = await decide(history);
+    history.push({ role: &quot;assistant&quot;, decision });
+    if (decision.kind === &quot;answer&quot;) {
+      return { status: &quot;answered&quot;, text: decision.text, history };
+    }
+    const result = await execute(decision.input);
+    history.push({ role: &quot;tool&quot;, callId: decision.id, result });
+  }
+  return { status: &quot;step-limit&quot;, history };
+}</code></pre><p>循环出现 answer 就返回，并不代表答案质量自动合格；status 只是执行状态。这里仅有步骤上限，执行异常会向调用方抛出，没有被伪装成正常工具结果。更完整的限制与失败策略分别在接下来的两课处理。</p></section>
+<section id="practice"><h2>动手：补上结果回到模型的那一步</h2><ol><li>按离线实验 README 运行既有实验，观察模型决策前的历史，不需要安装模型 SDK。</li><li>在纸上先预测去掉 <code>history.push({ role: 'tool', ... })</code> 后会发生什么，再在你的练习副本验证。</li><li>恢复回传，并把工具结果改成 NOT_AVAILABLE，检查后续输出是否仍然声称读到了文档。</li></ol><div class="callout"><strong>验收条件</strong><p>轨迹中调用与结果有关联 ID；下一轮能看到实际结果；删除回传会暴露失败；工具失败不会被最终回答写成读取成功。</p></div>
+<details><summary>做过以后，再看参考答案</summary><p>关键是把工具结果作为独立观察追加到历史，并在下一次 decide 调用时传入。删除它后，离线替身可能继续请求工具或无法形成答案，最后触发步骤上限。恢复后，成功路径应依据文档回答，失败路径应说明无法获得材料。具体命令与实验输出以 labs/README.md 为准。</p></details></section>
+<section><h2>停下来，从记忆里回答</h2><form class="quiz" data-quiz data-answer="0" data-correct="正确。环境观察必须进入下一轮可见上下文。" data-incorrect="工具在宿主里执行过，不等于模型已经收到了结果。">
+<fieldset><legend>工具执行成功后，要使下一轮模型利用结果，必须补上哪一步？</legend><label><input type="radio" name="answer" value="0">追加工具结果</label><label><input type="radio" name="answer" value="1">重复原始问题</label><label><input type="radio" name="answer" value="2">删掉执行记录</label></fieldset><button type="submit">检查答案</button><button type="reset">重新作答</button><p class="feedback" data-feedback></p></form>
+<details><summary>答案与理由</summary><p>应选“追加工具结果”。同时保留调用关联和必要历史，模型才知道这条结果回应了哪个动作。</p></details></section>
+<section><h2>换个需求，还能用吗？</h2><p>一次模型输出两个互不依赖的读取请求。你准备并行执行时，最少需要保留什么对应关系？</p><details><summary>迁移题参考要点</summary><p>每个调用与其结果的唯一关联、成功或失败状态，以及结果汇入下一轮的规则。不能按完成先后简单认为第一个结果属于第一个请求；并发会改变返回顺序。还要对每个工具执行权限与预算检查。</p></details></section>
+<section><h2>原始资料与主阅读</h2><ol><li><a href="https://ai-sdk.dev/docs/agents/overview">AI SDK · Agents</a>：主阅读：循环如何连接模型、工具与上下文。</li><li><a href="https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling">AI SDK · Tool Calling</a>：对照真实 SDK 的 tool call 与 tool result 概念。</li><li><a href="https://ai-sdk.dev/docs/agents/loop-control">AI SDK · Loop Control</a>：提前了解框架中的停止条件，不必现在记住全部接口。</li></ol><p class="muted">本课场景与练习使用虚构组件文档和工单。资料核对日期为 2026-09-22；文中的 SDK 片段未执行真实模型调用，后续实践须对照项目锁定版本与账号实际支持的模型。</p></section>
+<footer><p>有不清楚的地方，直接回到对话问老师。把你的判断、代码或执行轨迹贴回来，我会根据实际表现调整下一步；读过本课不等于已经掌握。</p><nav aria-label="相邻课程"><a href="0008-safe-tool-execution.html">上一课 · 实现一个受约束的只读工具</a><a href="0010-stopping-and-budgets.html">下一课 · 让任务在正确的时候停止</a></nav></footer>
+</main></body></html>

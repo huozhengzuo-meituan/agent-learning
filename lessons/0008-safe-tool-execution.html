@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>0008 · 实现一个受约束的只读工具 — Agent 工程学习</title>
+<meta name="description" content="把工具契约变成受约束的只读执行器，在运行时检查输入、访问范围与输出大小。">
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><a class="skip-link" href="#main">跳到正文</a><main class="narrow" id="main">
+<nav aria-label="课程导航"><a href="../index.html#curriculum">全部课程</a><a href="../reference/glossary.html">术语速查</a></nav>
+<header><p class="eyebrow">03 · 工具与执行循环 · LESSON 0008</p><h1>实现一个受约束的只读工具</h1>
+<p class="lede">把工具契约变成受约束的只读执行器，在运行时检查输入、访问范围与输出大小。</p><p class="meta"><span>阅读与检查 15–20 分钟</span><span>动手任务 35 分钟</span><span>资料核对 2026-09-22</span></p></header>
+<aside class="callout"><strong>这一课的具体成果</strong><p>实现一个只能读取内存里已授权文档的函数，并用边界输入证明它不会任意读文件。</p><p><strong>前置知识：</strong>完成第 0007 课，熟悉 unknown、类型缩窄、Map 和 Set。</p></aside>
+<section><h2>执行器面对的是不可信参数</h2><p>TypeScript 类型在运行时不会阻止模型或网络传入错误对象。工具入口应该从 unknown 开始，再检查对象、字段类型和长度。即使 SDK 已经做 schema 校验，工具内部的业务边界仍由你负责；特别是同一个执行函数可能被测试、后台任务或其他入口复用。</p><p>本课使用内存 Map 保存两份虚构组件文档，避免真实文件系统和外部请求。允许访问的 ID 由宿主传入的 ReadonlySet 决定。模型只能选择要读的 ID，不能修改允许集合，也不能把输入解释为路径。这个小实现足以练习权限边界，不需要先搭建完整服务。</p></section><section><h2>把可访问范围放在可信上下文里</h2><p><a href="https://ai-sdk.dev/docs/ai-sdk-core/runtime-and-tool-context">当前 AI SDK 区分模型工具输入与 per-tool context</a>。本课先用普通函数参数演示同一原则：input 是候选意图，allowedIds 是宿主已计算好的范围。只有同时满足结构规则与访问规则，才可以读取内容。</p><p>不要通过 input.allowedIds 或 input.isAdmin 建立允许集合。即使提示里要求模型“只能读有权限的文档”，真正的约束仍需要执行代码。若以后文档来自数据库，访问检查应落到可信服务端与数据访问层，不能只依靠浏览器隐藏按钮。</p></section><section><h2>只返回完成任务所需的内容</h2><p>工具结果会被放进下一轮输入，因此它也需要大小控制。这里用字符上限演示截断，并明确标记 truncated。字符数不是 token 数，但作为本地防止巨大返回值的一层约束仍有价值。不能静默截断后让模型以为拿到了全文。</p><p>成功结果带有 docId 与 version，便于回答引用。不可访问和不存在合并为 NOT_AVAILABLE，避免额外透露文档状态。这个设计牺牲了一些对模型的精细诊断，但宿主日志仍可保留内部原因。真实产品应该根据数据敏感性决定公开错误语义。</p></section>
+<section><h2>把过程放进 TypeScript</h2><p>这是独立的 TypeScript 教学片段，无 SDK、文件系统或网络依赖。片段未作为课程自动测试执行；请按练习的输入自行检查。</p><pre><code class="language-ts">const docs = new Map([
+  [&quot;button-v2&quot;, { version: &quot;2&quot;, text: &quot;loading=true 时阻止重复点击。&quot; }],
+  [&quot;dialog-v1&quot;, { version: &quot;1&quot;, text: &quot;关闭事件为 onClose。&quot; }],
+]);
+
+function readDoc(input: unknown, allowedIds: ReadonlySet&lt;string&gt;) {
+  if (!input || typeof input !== &quot;object&quot; || Array.isArray(input)) {
+    return { ok: false as const, code: &quot;INVALID_INPUT&quot; as const };
+  }
+  const docId = (input as Record&lt;string, unknown&gt;).docId;
+  if (typeof docId !== &quot;string&quot; || !docId || docId.length &gt; 80) {
+    return { ok: false as const, code: &quot;INVALID_INPUT&quot; as const };
+  }
+  if (!allowedIds.has(docId)) {
+    return { ok: false as const, code: &quot;NOT_AVAILABLE&quot; as const };
+  }
+  const doc = docs.get(docId);
+  if (!doc) {
+    return { ok: false as const, code: &quot;NOT_AVAILABLE&quot; as const };
+  }
+  const maxChars = 2_000;
+  return {
+    ok: true as const, docId, version: doc.version,
+    text: doc.text.slice(0, maxChars),
+    truncated: doc.text.length &gt; maxChars,
+  };
+}
+
+readDoc({ docId: &quot;button-v2&quot; }, new Set([&quot;button-v2&quot;]));</code></pre><p>即使输入 docId 是 ../../secret，该函数也只做 Map 查找，不会访问磁盘。允许集合必须由可信宿主创建；如果你直接把用户上传的集合传进来，函数签名并不会自动使它可信。</p></section>
+<section id="practice"><h2>动手：用四个输入检验边界</h2><ol><li>在本地 TypeScript 练习里复制函数，分别传入 null、数字 docId、未授权的 dialog-v1、已授权的 button-v2。</li><li>增加一份超过 2,000 字符的虚构文档，检查 text 长度与 truncated 是否一致。</li><li>把 allowedIds 从空集合改成仅含 button-v2，说明这项改变来自哪里、谁不应该控制它。</li></ol><div class="callout"><strong>验收条件</strong><p>错误形状得到 INVALID_INPUT；未授权 ID 得到 NOT_AVAILABLE；允许的文档带版本返回；截断有明确标记；任何输入都不会触发文件或网络访问。</p></div>
+<details><summary>做过以后，再看参考答案</summary><p>null 与数字字段应在读取前失败；未授权的 dialog-v1 即使存在也不返回正文；button-v2 在允许集合内才返回成功。长文档返回最多 2,000 个 JavaScript 字符单位并标记 truncated。这个上限不是 token 上限，也不是 Unicode 字素截断保证，实际面向展示时还需选择适合的文本边界。</p></details></section>
+<section><h2>停下来，从记忆里回答</h2><form class="quiz" data-quiz data-answer="0" data-correct="正确。授权范围来自可信宿主，不能由候选动作自行扩大。" data-incorrect="权限不能由请求者声称自己拥有，也不能由检索文档正文赋予。">
+<fieldset><legend>工具的 allowedIds 应该由哪一方根据身份确定？</legend><label><input type="radio" name="answer" value="0">可信宿主程序</label><label><input type="radio" name="answer" value="1">模型自由填写</label><label><input type="radio" name="answer" value="2">文档内容指定</label></fieldset><button type="submit">检查答案</button><button type="reset">重新作答</button><p class="feedback" data-feedback></p></form>
+<details><summary>答案与理由</summary><p>应选“可信宿主程序”。本课显式把模型参数与执行上下文分开，便于落实这个约束。</p></details></section>
+<section><h2>换个需求，还能用吗？</h2><p>以后把 Map 改成数据库，哪些约束应保留，哪些地方需要重做？</p><details><summary>迁移题参考要点</summary><p>保留输入校验、身份范围、输出上限、来源与版本。重做数据库查询、访问控制与异常映射，并用参数化查询避免把 docId 拼成可执行查询语句。不要因为存储升级就把可信 allowedIds 改成用户可传入的字段。</p></details></section>
+<section><h2>原始资料与主阅读</h2><ol><li><a href="https://ai-sdk.dev/docs/ai-sdk-core/runtime-and-tool-context">AI SDK · Runtime and Tool Context</a>：主阅读：工具输入与服务端执行上下文分离。</li><li><a href="https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling">AI SDK · Tool Calling</a>：对照 execute 的角色；本课函数是独立实现。</li></ol><p class="muted">本课场景与练习使用虚构组件文档和工单。资料核对日期为 2026-09-22；文中的 SDK 片段未执行真实模型调用，后续实践须对照项目锁定版本与账号实际支持的模型。</p></section>
+<footer><p>有不清楚的地方，直接回到对话问老师。把你的判断、代码或执行轨迹贴回来，我会根据实际表现调整下一步；读过本课不等于已经掌握。</p><nav aria-label="相邻课程"><a href="0007-tool-contracts.html">上一课 · 为模型设计清晰的工具契约</a><a href="0009-agent-loop.html">下一课 · 亲手读懂并补完 Agent 循环</a></nav></footer>
+</main></body></html>

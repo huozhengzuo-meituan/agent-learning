@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>0011 · 区分失败类型，再决定是否重试 — Agent 工程学习</title>
+<meta name="description" content="按失败原因、重复执行风险和剩余预算，决定重试、修复输入或直接停止。">
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><a class="skip-link" href="#main">跳到正文</a><main class="narrow" id="main">
+<nav aria-label="课程导航"><a href="../index.html#curriculum">全部课程</a><a href="../reference/glossary.html">术语速查</a></nav>
+<header><p class="eyebrow">04 · 执行控制 · LESSON 0011</p><h1>区分失败类型，再决定是否重试</h1>
+<p class="lede">按失败原因、重复执行风险和剩余预算，决定重试、修复输入或直接停止。</p><p class="meta"><span>阅读与检查 15–20 分钟</span><span>动手任务 35 分钟</span><span>资料核对 2026-09-22</span></p></header>
+<aside class="callout"><strong>这一课的具体成果</strong><p>写出一张失败处理表，并验证不能把所有异常都放进同一个无限重试循环。</p><p><strong>前置知识：</strong>完成第 0010 课，理解尝试次数与逻辑步骤的区别。</p></aside>
+<section><h2>失败不只有一种修复方式</h2><p>网络瞬时故障可能稍后成功；缺少 API Key 需要修配置；输入不符合 schema 需要修参数；文档没有提供相关信息需要补证据。这些失败如果全部“原样再试”，只会浪费预算。先把外部错误归一化为应用能理解的类别，再做恢复决策。</p><p>还要分清业务上的无结果与技术异常。搜索返回空列表可以是正常结果，不等于网络请求失败；工具抛出权限错误也不应被包装成“没有相关文档”。对于模型来说，两者代表不同的观察，影响下一步动作。错误类别设计得清楚，重试策略就不需要依靠猜测错误文案。</p></section><section><h2>重试前先问能否安全重复</h2><p>读一份文档通常可以重复，但提交工单、发消息和扣款可能产生重复副作用。请求超时只说明没有及时收到结果，不证明对端没有执行。如果不清楚动作是否生效，应先核对状态，或通过幂等机制恢复；第 0022 课会专门展开。</p><p>本课只对标记为可安全重试的读取动作给出建议。延迟采用递增等待，并留有次数与总截止时间。真实服务遇到限流时还应遵守服务端的 Retry-After 等明确约定，而不是所有错误都固定一秒再次冲击同一接口。</p></section><section><h2>避免两层重试相乘</h2><p>你的循环重试三次，SDK 内部又重试两次，最终网络尝试数可能远多于你以为的三次。<a href="https://ai-sdk.dev/docs/ai-sdk-core/settings">AI SDK settings</a>提供 maxRetries 配置；<a href="https://ai-sdk.dev/docs/ai-sdk-core/error-handling">当前错误处理文档</a>还区分调用开始阶段与流开始后的错误恢复。接入时明确由哪一层控制，并记录实际尝试次数。</p><p>流式场景尤其要核对恢复会不会重放先前工具、重复提交片段或保留旧结果。当前文档给出了 streamRetries 的专门语义，但不同锁定版本可能不同。本课不把它简化成“流断了就重跑整个 Agent”，而是先保留逻辑步骤、网络尝试和工具副作用的边界。</p></section>
+<section><h2>把过程放进 TypeScript</h2><p>自定义错误归一化后的重试判定片段。它只输出等待建议，不发起网络请求；真实响应的错误码需要在适配器层转换。</p><pre><code class="language-ts">type Failure = {
+  kind: &quot;transient&quot; | &quot;rate-limit&quot; | &quot;auth&quot; | &quot;invalid-input&quot; | &quot;cancelled&quot;;
+  safeToRepeat: boolean;
+  retryAfterMs?: number;
+};
+
+function retryDelay(
+  failure: Failure,
+  attemptsMade: number,
+  remainingMs: number,
+): number | null {
+  if (!failure.safeToRepeat || attemptsMade &gt;= 3) return null;
+  if (failure.kind !== &quot;transient&quot; &amp;&amp; failure.kind !== &quot;rate-limit&quot;) {
+    return null;
+  }
+  const delay = failure.retryAfterMs ??
+    Math.min(500 * 2 ** Math.max(0, attemptsMade - 1), 4_000);
+  if (!Number.isFinite(delay) || delay &lt; 0) return null;
+  // 留出下一次请求的最低时间预算。
+  return delay + 1_000 &lt;= remainingMs ? delay : null;
+}</code></pre><p>返回 null 表示当前策略不重试，调用者还应保留具体原因。这个教学片段没有加入随机抖动，也没有执行真实等待；生产并发流量需要进一步处理抖动、取消和准确的请求预算。</p></section>
+<section id="practice"><h2>动手：给失败选择恢复方式</h2><ol><li>为五个场景填写“重试 / 修复配置 / 修改输入 / 补资料 / 停止”：读取接口 503、凭据缺失、docId 是数字、文档无说明、用户取消。</li><li>用 retryDelay 检查：已尝试两次、还剩 3 秒、transient 且安全重复；再把 safeToRepeat 改成 false。</li><li>补一条有写副作用的超时场景，说明为什么不能用同样规则直接重试。</li></ol><div class="callout"><strong>验收条件</strong><p>不会重试用户取消；配置和输入错误有明确修复路径；尝试次数与时间上限都生效；超时与未执行没有混为一谈。</p></div>
+<details><summary>做过以后，再看参考答案</summary><p>503 在安全可重复且预算足够时可重试；凭据缺失修配置；数字 docId 修输入；文档无说明补资料或承认未知；用户取消停止。两次尝试后的建议延迟为 1,000 ms，剩余 3 秒可容纳题目规定的最低下一次预算。safeToRepeat=false 时不重试。写操作超时应先核验状态或使用幂等标识。</p></details></section>
+<section><h2>停下来，从记忆里回答</h2><form class="quiz" data-quiz data-answer="1" data-correct="正确。超时不证明对端没有完成写操作。" data-incorrect="请求结果丢失与动作未发生是不同情况，直接重试可能重复写入。">
+<fieldset><legend>写入工单的请求超时了，能直接得出哪个结论？</legend><label><input type="radio" name="answer" value="0">对端尚未执行</label><label><input type="radio" name="answer" value="1">结果暂不确定</label><label><input type="radio" name="answer" value="2">可以无限重试</label></fieldset><button type="submit">检查答案</button><button type="reset">重新作答</button><p class="feedback" data-feedback></p></form>
+<details><summary>答案与理由</summary><p>应选“结果暂不确定”。需要根据业务接口查询状态或使用幂等恢复，而不是仅凭超时重复副作用。</p></details></section>
+<section><h2>换个需求，还能用吗？</h2><p>模型连续返回 schema 错误，你会怎样区分“应该修 prompt”与“应该换接口配置”？</p><details><summary>迁移题参考要点</summary><p>先查看错误是否来自不支持的 schema 或模型能力，若是配置问题应修接口；若接口支持但生成内容违反业务规格，再检查输入与提示、给清晰反馈或改字段设计。重复相同失败之前，应有新的可验证假设，且受限于次数预算。</p></details></section>
+<section><h2>原始资料与主阅读</h2><ol><li><a href="https://ai-sdk.dev/docs/ai-sdk-core/error-handling">AI SDK · Error Handling</a>：主阅读：普通错误、流错误与恢复边界。</li><li><a href="https://ai-sdk.dev/docs/ai-sdk-core/settings">AI SDK · Settings</a>：核对 maxRetries 与请求超时配置。</li><li><a href="https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/timeout_static">MDN · AbortSignal.timeout</a>：区分超时取消与调用完成。</li></ol><p class="muted">本课场景与练习使用虚构组件文档和工单。资料核对日期为 2026-09-22；文中的 SDK 片段未执行真实模型调用，后续实践须对照项目锁定版本与账号实际支持的模型。</p></section>
+<footer><p>有不清楚的地方，直接回到对话问老师。把你的判断、代码或执行轨迹贴回来，我会根据实际表现调整下一步；读过本课不等于已经掌握。</p><nav aria-label="相邻课程"><a href="0010-stopping-and-budgets.html">上一课 · 让任务在正确的时候停止</a><a href="0012-runtime-and-harnesses.html">下一课 · 模型、SDK 与 Harness：现代 Agent 运行时</a></nav></footer>
+</main></body></html>

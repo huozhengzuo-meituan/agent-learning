@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0028 · 工具权限与执行隔离 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><a class="skip-link" href="#main">跳到课程正文</a><main id="main" class="narrow">
+<nav aria-label="课程导航"><a href="../index.html#curriculum">课程地图</a><a href="../reference/glossary.html">术语速查</a><a href="../labs/README.md">实验入口</a></nav>
+<header><div class="eyebrow">10 · 协议与框架 / LESSON 0028</div><h1>工具权限与执行隔离</h1><p class="lede">把工具能力做成最小权限，并说明代码执行需要哪一层隔离。</p><div class="meta"><span>阅读 10–15 分钟 · 练习 20–40 分钟</span><span>来源核对：2026-09-22</span><span>应用侧 · TypeScript</span></div></header>
+<aside class="callout"><p><strong>本课交付：</strong>把工具能力做成最小权限，并说明代码执行需要哪一层隔离。</p><p><strong>前置：</strong><a href="0008-safe-tool-execution.html">0008 实现一个受约束的只读工具</a>、<a href="0021-human-approval.html">0021 把人工确认做成程序约束</a>、<a href="0027-prompt-injection.html">0027 识别提示注入与信任边界</a></p><p>场景统一使用虚构文档与工单。代码注明示意时，需要接入你自己的项目上下文；本页不会发起模型调用。</p></aside>
+<section id="concept"><h2>先理解这个工程问题</h2>
+<p>“模型可以运行 TypeScript”会大幅扩展能力，也把文件系统、网络和进程变成风险面。先区分两层：业务授权决定允许处理哪个租户、哪份工单；执行隔离决定代码即使行为错误，也接触不到哪些资源。只在提示里写“不要读取密钥”不构成隔离。</p>
+<p><a href="https://nodejs.org/api/vm.html">Node.js 官方明确说明 node:vm 不是安全机制</a>。TypeScript 类型检查同样不限制运行时网络请求。课程里的 runCode 接口是能力模型示意；不能把字符串交给 eval 后就称为安全沙箱。生产方案需采用适合威胁模型的隔离执行环境、资源配额、网络出口策略与凭证代理。</p>
+<p>为助手先提供一个只读搜索能力，再提供需要审批的草稿保存能力，比暴露任意 HTTP 与任意 Shell 更容易审核。授权范围由宿主构造并在每次调用时检查，沙箱只获得必要的数据和短期能力；不把长期服务凭证放入模型可执行代码的环境。</p>
+<p><a href="https://docs.docker.com/engine/security/">Docker 的安全文档</a>讨论 namespace、capability 等机制及隔离边界；“放进容器”不等于完成沙箱设计。挂载宿主根目录、共享 Docker socket、默认放行全部网络，都会破坏预期边界。具体失败案例是只允许导出摘要，却把包含所有租户资料的目录挂进了同一个容器。</p></section>
+<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code>// 课程自定义的声明；必须由真正的执行环境落实。
+type SandboxPolicy = {
+  readableArtifacts: readonly string[];
+  writableDirectory: string;
+  networkHosts: readonly string[];
+  deadlineMs: number;
+  maxOutputBytes: number;
+};
+const summarizePolicy: SandboxPolicy = {
+  readableArtifacts: [&quot;artifact:demo/release-7&quot;],
+  writableDirectory: &quot;/workspace/output&quot;,
+  networkHosts: [],
+  deadlineMs: 3000,
+  maxOutputBytes: 16000
+};
+// 仅声明 policy 不产生隔离；禁止把它误当作沙箱实现。</code></pre></section>
+<section id="practice"><h2>动手：把判断变成证据</h2><ol><li>列出 summarize 工具最少需要的文件、网络、时间和输出能力。</li><li>设计四个拒绝场景：访问未授权资料、联网、无限循环、输出超过配额。</li><li>为每个场景指定真正的执行者：资源服务、网络出口、沙箱调度器或输出通道；不能全部填“提示词”。</li></ol><div class="callout"><p><strong>验收：</strong>每个权限都有执行层归属和拒绝证据；能说明本地夹具只能测试策略，不能证明操作系统隔离可靠。</p></div><details><summary>完成后再展开：参考解与检查思路</summary><p>资料访问由资源服务按租户验证，联网在沙箱网络出口阻止，超时由外部调度器终止执行，输出通道限制字节数并返回明确截断状态。若所有工具都通过受控代理，代码不需要拿到上游服务的长期密钥。</p></details></section>
+<section id="quiz"><h2>检索练习：不看上文作答</h2><form class="quiz" data-quiz data-answer="2" data-correct="判断正确。请再用自己的话解释理由。" data-incorrect="这个选择尚未守住本课的关键边界。请重新推理，或展开解析。"><fieldset><legend>以下哪项能直接证明安全隔离已经完成？</legend><label><input type="radio" name="answer" value="0"><span>类型检查通过</span></label><label><input type="radio" name="answer" value="1"><span>提示内容严格</span></label><label><input type="radio" name="answer" value="2"><span>以上均不成立</span></label></fieldset><button type="submit">检查答案</button><button type="reset">重新作答</button><p class="feedback" data-feedback></p></form><details><summary>答案与原因（离线、无脚本也可阅读）</summary><p>答案：以上均不成立。类型、提示和一份策略声明都不是隔离机制；需要实际执行环境与针对边界的验证。</p></details></section>
+<section id="transfer"><h2>换个场景再判断</h2><p>代码在沙箱内不能联网，却可以返回任意 HTML 让浏览器渲染，有什么缺口？</p><details><summary>迁移题参考答案</summary><p>输出也是边界。浏览器渲染可能触发脚本或远程资源请求，需要按预期格式校验、转义或在隔离预览中展示；只切断沙箱网络不足以约束后续执行环境。</p></details></section>
+<section id="reading"><h2>读原始资料</h2><p><strong>主阅读建议：</strong>先读 Node VM 的安全声明，再用 Docker 文档核对“容器内 root 与宿主 root”的区别。</p><ul><li><a href="https://nodejs.org/api/vm.html">Node.js · VM</a></li><li><a href="https://docs.docker.com/engine/security/">Docker · Engine security</a></li></ul><p class="muted">上列来源于 2026-09-22 核对。练习中的数据、阈值和 TypeScript 内部接口为课程设计；产品接口、价格和可用性需在实际接入时按版本重核。</p></section>
+<footer><p>看懂不等于掌握。明天闭卷重做判断题，一周后用新的工单重做迁移题。把你的答案、运行结果或疑问发给我，我们一起定位下一步；未提交练习前，本课不记录为已掌握。</p><nav aria-label="前后课程"><a href="0027-prompt-injection.html">← 0027 上一课</a><a href="0029-mcp-boundaries.html">0029 下一课 →</a></nav></footer>
+</main></body></html>

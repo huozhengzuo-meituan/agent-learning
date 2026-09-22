@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="用可重放事件驱动 UI，正确显示工具执行、等待批准和最终完成，而不靠模型文案猜状态。">
+<title>0019 · 把执行事件映射为前端状态 — TypeScript Agent 工程</title>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><a class="skip-link" href="#lesson">跳到课程正文</a>
+<main class="narrow" id="lesson">
+<nav aria-label="课程导航">
+      <a href="../index.html#curriculum">完整课程</a>
+      <a href="0018-memory-lifecycle.html">← 0018 记忆的写入、读取与失效</a>
+      <a href="0020-cancellation-and-concurrency.html">0020 取消、并发与过期结果 →</a>
+      <a href="../reference/glossary.html">术语预览</a>
+    </nav>
+<header><p class="eyebrow">07 · 产品交互 · Lesson 0019</p>
+<h1>把执行事件映射为前端状态</h1><p class="lede">用可重放事件驱动 UI，正确显示工具执行、等待批准和最终完成，而不靠模型文案猜状态。</p>
+<div class="meta"><span>阅读与判断 15–20 分钟</span><span>实验 20–40 分钟</span><span>资料核对：2026-09-22</span></div></header>
+<aside class="callout"><p><strong>前置：</strong>第 0006 课的流式事件；熟悉 React reducer 或类似状态管理。</p><p><strong>能力状态：</strong>应用事件模型为课程设计；AI SDK 文档按 2026-09-22 核对，接入时需匹配具体依赖版本。示例未联调。</p><p>本课服务于研发知识助手项目；页面备齐不代表已经掌握。以动手结果、解释和后续迁移作为学习证据。</p></aside>
+<section aria-label="讲解与示例"><h2>聊天气泡承载不了完整执行状态</h2>
+ <p>Agent 一边输出说明，一边调用检索工具，还可能等待用户批准。若界面只看是否收到文字，“正在提交”会被误显示成“提交成功”。前端应该呈现服务端确认的执行事件，模型文字作为可读内容单独渲染。</p>
+ <p>AI SDK 的 UI 文档展示了消息 parts 与流式事件，说明一条消息可含文本、工具和数据。<a href="https://ai-sdk.dev/docs/ai-sdk-ui/chatbot">资料：Chatbot</a>。下面使用自定义课程事件，不是该 SDK 的真实协议；你可以在适配层把所选 SDK 的事件映射为本项目模型。</p>
+ <h2>状态转移由事件定义</h2>
+ <p>先写清不同层次：连接状态是连接中/断开；run 状态是运行/待批准/完成/失败；每个 toolCall 有自己的状态。某个工具返回并不说明整个 run 完成，文字流结束也不说明外部写入已经成功。并行工具应按 callId 单独显示卡片。</p><pre><code>type Status = &quot;running&quot; | &quot;waiting&quot; | &quot;completed&quot; | &quot;failed&quot;;
+type View = { runId: string; seq: number; text: string; status: Status };
+type RunEvent = { runId: string; seq: number } &amp; (
+  | { type: &quot;text&quot;; delta: string }
+  | { type: &quot;status&quot;; status: Status }
+);
+function reduce(view: View, event: RunEvent): View {
+  if (event.runId !== view.runId || event.seq &lt;= view.seq) return view;
+  if (event.seq !== view.seq + 1) throw new Error(&quot;REPLAY_GAP&quot;);
+  if (view.status === &quot;completed&quot; || view.status === &quot;failed&quot;) return view;
+  return event.type === &quot;text&quot;
+    ? { ...view, seq: event.seq, text: view.text + event.delta }
+    : { ...view, seq: event.seq, status: event.status };
+}</code></pre><p>服务端在一个 run 内分配连续序号，重连时按 cursor 重放，重复事件可忽略；发现缺号则请求补齐或重新获取快照。例子遇到缺口直接抛错，实际 UI 应捕获并显示“同步中”，不能直接崩溃。业务事件是否可重放取决于你的持久日志，SSE 本身不会替你保存历史。</p>
+ <p>协议也要区分文字块的开始、增量和结束，避免把同一个块重复拼接。AI SDK 的流协议提供这类结构，接入时应使用与依赖版本匹配的解析器。<a href="https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol">资料：Stream protocols</a>。</p>
+ <aside class="callout"><strong>前端可验收体验：</strong>用户能看到当前动作、证据卡片、待批准内容与失败后的恢复入口。不要把私密推理链作为产品必需的日志；提供面向用户的简要执行状态与可核对结果即可。</aside></section>
+<section id="practice"><h2>动手：让边界可观察</h2><ol><li>初始化 run=r1、seq=0、text=""、status=running。依次输入 seq1 文字“找到”、seq2 文字“文档”、seq3 waiting。</li><li>重复 seq2，再输入 r0 的旧事件，确认状态未改变。</li><li>跳过 seq4 直接传 seq5 completed，模拟补齐或重读快照。</li><li>纸上画出一个工具失败、另一个成功时的 UI；整个 run 仍可继续。</li></ol><p><strong>验收：</strong>文本只出现一次“找到文档”；缺号触发同步处理。成功标签只由最终业务事件显示，不能被“我已经完成”这样的文字触发。</p>
+<p class="muted">建议先独立完成；本课代码用于理解机制。实验可在工作区新建笔记或 TypeScript 文件，真实 API 与依赖准备见 <a href="../labs/README.md">实验说明</a>。</p>
+<details><summary>完成后查看参考解</summary><p>seq3 后应显示 waiting，重复事件被去重，其他 run 的事件被隔离。seq5 在没有 seq4 时触发 REPLAY_GAP；客户端捕获后请求缺失事件，或用服务端快照替换状态。工具卡片分别标识成功/失败，run 状态由下一步是否仍能完成任务决定。</p><p>生产适配层还应拒绝未知事件类型、校验字段，并在服务端持久化终态；浏览器刷新后不能只靠内存猜测任务状态。</p></details></section>
+<section id="check"><h2>不看上文，检验一次</h2>
+<form class="quiz" data-quiz data-answer="0" data-correct="判断正确。再用自己的话解释原因，核对是否只是记住了选项。" data-incorrect="这个判断遗漏了一个边界。请重读题目，或展开解析核对。">
+<fieldset><legend>模型输出“文件已保存”，但写入工具尚未返回，UI 应依据什么？</legend><label><input type="radio" name="answer" value="0"><span>服务端的执行事件</span></label><label><input type="radio" name="answer" value="1"><span>文字流的字符数量</span></label><label><input type="radio" name="answer" value="2"><span>模型文字已经承诺</span></label></fieldset>
+<button type="submit">检查答案</button><button type="reset">重新作答</button><p class="feedback" data-feedback></p></form>
+<details><summary>答案与理由（无脚本时也可查看）</summary><p>答案：服务端的执行事件。UI 的业务状态来源于经过执行器确认的事件。语言表达不能证明外部动作成功。</p></details>
+</section>
+<section id="transfer"><h2>换个情境，还能做对吗？</h2><p>用户刷新后，文本恢复了，但批准按钮重复出现。你优先检查哪里？</p>
+<details><summary>迁移题参考思路</summary><p>检查批准请求是否有稳定 actionId 与当前服务器状态，消息内容和业务状态是否分开恢复。渲染按钮前读取 action 的待批准状态；客户端重放不能重新创建审批请求。</p></details>
+<p>明天用 2 分钟，不看答案重述本课最容易出错的边界；一周后换一个项目名与失败时序再做一次。把你的判断、代码或失败结果发给老师追问，我会据此调整后续练习。</p></section>
+<section id="sources"><h2>原始资料与继续阅读</h2><ul><li><a href="https://ai-sdk.dev/docs/ai-sdk-ui/chatbot">AI SDK Chatbot（主阅读）</a>：阅读 messages.parts 与状态管理，联系现有 React 经验。</li><li><a href="https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol">AI SDK Stream protocols</a>：观察开始、增量、结束及工具事件；本课事件不是对该协议的复制。</li></ul>
+<p class="muted">链接在 2026-09-22 核对；知识点采用官方资料，实验数据和课程代码为教学设计。未调用收费模型 API，未以这些示例完成生产环境验证。遇到 SDK 版本差异先查官方变更记录。</p></section>
+<footer><p>困惑可以直接追问：“请用一个失败 trace 解释本课的边界”，或贴出你的实验结果。不要把看懂参考答案当成已经能独立实现。</p><nav aria-label="课程导航">
+      <a href="../index.html#curriculum">完整课程</a>
+      <a href="0018-memory-lifecycle.html">← 0018 记忆的写入、读取与失效</a>
+      <a href="0020-cancellation-and-concurrency.html">0020 取消、并发与过期结果 →</a>
+      <a href="../reference/glossary.html">术语预览</a>
+    </nav></footer>
+</main></body></html>

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0030 · 把手写循环映射到框架 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><a class="skip-link" href="#main">跳到课程正文</a><main id="main" class="narrow">
+<nav aria-label="课程导航"><a href="../index.html#curriculum">课程地图</a><a href="../reference/glossary.html">术语速查</a><a href="../labs/README.md">实验入口</a></nav>
+<header><div class="eyebrow">10 · 协议与框架 / LESSON 0030</div><h1>把手写循环映射到框架</h1><p class="lede">把手写 Agent 循环迁入框架，同时用契约测试保持行为边界。</p><div class="meta"><span>阅读 10–15 分钟 · 练习 20–40 分钟</span><span>来源核对：2026-09-22</span><span>应用侧 · TypeScript</span></div></header>
+<aside class="callout"><p><strong>本课交付：</strong>把手写 Agent 循环迁入框架，同时用契约测试保持行为边界。</p><p><strong>前置：</strong><a href="0009-agent-loop.html">0009 亲手读懂并补完 Agent 循环</a>、<a href="0010-stopping-and-budgets.html">0010 让任务在正确的时候停止</a>、<a href="0021-human-approval.html">0021 把人工确认做成程序约束</a>、<a href="0024-graders-and-regressions.html">0024 评分器、重复试验与回归判断</a>、<a href="0029-mcp-boundaries.html">0029 MCP 连接了什么，留下了什么</a></p><p>场景统一使用虚构文档与工单。代码注明示意时，需要接入你自己的项目上下文；本页不会发起模型调用。</p></aside>
+<section id="concept"><h2>先理解这个工程问题</h2>
+<p>框架的价值是减少反复实现循环、消息拼装、流式事件与类型推断的工作。迁移前先列清楚手写循环已经承诺的行为：最大步骤、允许工具、取消、错误传播、审批、证据 ID、停止原因。框架省掉了多少代码，与这些承诺是否仍成立，要分开判断。</p>
+<p><a href="https://ai-sdk.dev/docs/agents/building-agents">当前 AI SDK 的 ToolLoopAgent</a>集中配置模型、instructions 和工具；<a href="https://ai-sdk.dev/docs/agents/loop-control">循环控制</a>使用 stopWhen 与 prepareStep，本次文档的步数条件名为 isStepCount。具体 API 绑定当前文档，安装时必须按锁定版本核对，不能把旧教程的参数名直接混用。</p>
+<p>最大模型步骤并不等于最大工具执行次数：一个模型响应可能请求多个工具；费用和执行次数仍要在工具网关独立计数。框架内置的停止条件也不能替代业务完成判据。能生成最终文字，不等于文档证据齐全或草稿已通过审批。</p>
+<p>具体失败场景：迁移后工具函数直接写工单，原来在执行器中的审批被绕过；界面仍显示一个确认按钮，但后端已经执行。先用同一份假模型轨迹测试两个实现，再连接真实模型。迁移应按“调用模型、提出动作、批准动作、执行动作”分别观察。</p></section>
+<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code>// API 形状示例：需安装匹配版本的 ai 并配置 model/tools 后使用。
+import { ToolLoopAgent, isStepCount } from &quot;ai&quot;;
+
+// model 与 tools 由你的应用注入；工具网关继续负责身份、预算和审批。
+function createAssistant(
+  model: ConstructorParameters&lt;typeof ToolLoopAgent&gt;[0][&quot;model&quot;],
+  tools: ConstructorParameters&lt;typeof ToolLoopAgent&gt;[0][&quot;tools&quot;]
+) {
+  return new ToolLoopAgent({
+    model,
+    instructions: &quot;按证据回答；没有证据时说明缺口。&quot;,
+    tools,
+    stopWhen: isStepCount(8)
+  });
+}
+// 这段不包含真实调用；不等于已经完成供应商集成验证。</code></pre></section>
+<section id="practice"><h2>动手：把判断变成证据</h2><ol><li>写一张映射表：历史消息、工具 schema、执行器、停止条件、事件流分别交给哪层。</li><li>准备四条固定轨迹：正常检索、持续调用工具、审批被拒绝、调用过程中取消。</li><li>在迁移前后比较工具实际调用次数、最终停止原因与写入次数；不能只比较回答文本。</li></ol><div class="callout"><p><strong>验收：</strong>四条轨迹的安全与业务结果一致；能说明哪些差异只是框架事件名，哪些是行为回归。</p></div><details><summary>完成后再展开：参考解与检查思路</summary><p>把审批与幂等封装在受控工具网关，框架仅请求执行。持续调用轨迹应在限定步数终止，且被拒绝写入的次数始终为零；取消后的结果不能覆盖新任务。若框架行为不支持某契约，先保留适配层再评估是否迁移。</p></details></section>
+<section id="quiz"><h2>检索练习：不看上文作答</h2><form class="quiz" data-quiz data-answer="1" data-correct="判断正确。请再用自己的话解释理由。" data-incorrect="这个选择尚未守住本课的关键边界。请重新推理，或展开解析。"><fieldset><legend>迁移完成最有力的证据是哪项？</legend><label><input type="radio" name="answer" value="0"><span>代码行数减少</span></label><label><input type="radio" name="answer" value="1"><span>原有契约通过</span></label><label><input type="radio" name="answer" value="2"><span>界面文字相同</span></label></fieldset><button type="submit">检查答案</button><button type="reset">重新作答</button><p class="feedback" data-feedback></p></form><details><summary>答案与原因（离线、无脚本也可阅读）</summary><p>答案：原有契约通过。原有契约通过说明重要行为得到保留；少代码和相似文字无法证明权限、停止和取消语义。</p></details></section>
+<section id="transfer"><h2>换个场景再判断</h2><p>团队想同时接入第二个框架，要先抽象所有框架的公共基类吗？</p><details><summary>迁移题参考答案</summary><p>先挑一个真实需求验证第二个实现；稳定的是内部工具契约、事件与评估数据。没有真实差异前构建庞大公共基类，容易抹平有用能力并增加维护成本。</p></details></section>
+<section id="reading"><h2>读原始资料</h2><p><strong>主阅读建议：</strong>先读 Building Agents 的配置与上下文，再逐条对照 Loop Control 的停止语义。</p><ul><li><a href="https://ai-sdk.dev/docs/agents/building-agents">AI SDK · Building Agents</a></li><li><a href="https://ai-sdk.dev/docs/agents/loop-control">AI SDK · Loop Control</a></li></ul><p class="muted">上列来源于 2026-09-22 核对。练习中的数据、阈值和 TypeScript 内部接口为课程设计；产品接口、价格和可用性需在实际接入时按版本重核。</p></section>
+<footer><p>看懂不等于掌握。明天闭卷重做判断题，一周后用新的工单重做迁移题。把你的答案、运行结果或疑问发给我，我们一起定位下一步；未提交练习前，本课不记录为已掌握。</p><nav aria-label="前后课程"><a href="0029-mcp-boundaries.html">← 0029 上一课</a><a href="0031-planning-and-harnesses.html">0031 下一课 →</a></nav></footer>
+</main></body></html>

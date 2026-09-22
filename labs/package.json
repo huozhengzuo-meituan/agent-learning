@@ -1,0 +1,1 @@
+{"name":"agent-engineering-labs","private":true,"type":"module","engines":{"node":">=22.18.0"},"scripts":{"demo":"node src/demo.ts","test":"node --test tests.test.mjs","practice":"LAB_TARGET=exercises node --test tests.test.mjs","typecheck":"tsc -p tsconfig.json"}}

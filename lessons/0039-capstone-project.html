@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0039 · 完成研发知识助手综合项目 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><a class="skip-link" href="#main">跳到课程正文</a><main id="main" class="narrow">
+<nav aria-label="课程导航"><a href="../index.html#curriculum">课程地图</a><a href="../reference/glossary.html">术语速查</a><a href="../labs/README.md">实验入口</a></nav>
+<header><div class="eyebrow">13 · 运行与综合作品 / LESSON 0039</div><h1>完成研发知识助手综合项目</h1><p class="lede">把课程能力整合成一个有演示、故障证据和评分报告的研发知识助手。</p><div class="meta"><span>阅读 10–15 分钟 · 练习 20–40 分钟（综合项目另计）</span><span>来源核对：2026-09-22</span><span>应用侧 · TypeScript</span></div></header>
+<aside class="callout"><p><strong>本课交付：</strong>把课程能力整合成一个有演示、故障证据和评分报告的研发知识助手。</p><p><strong>前置：</strong><a href="0017-rag-and-citations.html">0017 让回答与检索证据对应</a>、<a href="0021-human-approval.html">0021 把人工确认做成程序约束</a>、<a href="0024-graders-and-regressions.html">0024 评分器、重复试验与回归判断</a>、<a href="0025-tracing-and-observability.html">0025 用执行轨迹定位问题</a>、<a href="0033-testing-and-fault-injection.html">0033 通过故障注入检验系统边界</a>、<a href="0037-background-and-durable-agents.html">0037 后台 Agent 与持久任务生命周期</a>、<a href="0038-deployment-and-operations.html">0038 把实验变成可运行的服务</a></p><p>场景统一使用虚构文档与工单。代码注明示意时，需要接入你自己的项目上下文；本页不会发起模型调用。</p></aside>
+<section id="concept"><h2>先理解这个工程问题</h2>
+<p>综合项目服务一个明确用户：研发同学输入“根据虚构组件库的发布文档，解释 T-42 的兼容问题，给出有来源的处理建议并准备演示工单创建草稿”。系统先检索证据，再决定是否补查；证据不足时明确缺口；创建演示工单前展示草稿内容并等待批准。项目只使用课程虚构资料，不接真实工单写入。</p>
+<p>交付与任务书统一分为四段：A 完成只读 Agent，包含真实模型、工具循环、预算和引用；B 加入前端交互、批准与幂等写入；C 加入恢复、长任务和一种能力扩展；D 完成评估、故障演练与作品交付。每段交付都可演示，完整任务规范与评分表见 <a href="../CAPSTONE.md">CAPSTONE.md</a>，起步练习见 <a href="../labs/README.md">labs</a>。</p>
+<p>与任务书统一的验收权重为：任务完成与证据质量 25 分、执行可靠性 20 分、权限与信任边界 20 分、可观测与评估 20 分、产品体验与工程表达 15 分。建议至少 80 分，且未经批准的副作用、跨租户泄露、密钥外露等关键边界样本全部通过。这是教学阈值，不能证明生产系统不存在其他风险。</p>
+<p>按 <a href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents">evals 实践</a>同时查看轨迹与最终状态；按 <a href="https://openai.com/index/harness-engineering/">harness 工程案例</a>为执行者提供可查的规格与反馈。具体失败场景是演示一次成功后宣称系统稳定：你还需要普通、证据缺失、过期、注入、取消和恢复等任务类别，以及真实模型测试的明确覆盖范围。</p></section>
+<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code>type DemoEvidence = {
+  runId: string;
+  answerEvidenceIds: string[];
+  approvalId?: string;
+  issueId?: string;
+  stopReason: string;
+  cost: number | null; // 离线夹具没有真实费用，不能填成实测 0 元
+};
+const expected: DemoEvidence = {
+  runId: &quot;capstone-demo-1&quot;,
+  answerEvidenceIds: [&quot;atlas-release-v2#compat&quot;],
+  approvalId: &quot;approval-demo-1&quot;,
+  issueId: &quot;issue-demo-1&quot;,
+  stopReason: &quot;completed&quot;,
+  cost: null
+};</code></pre></section>
+<section id="practice"><h2>动手：把判断变成证据</h2><ol><li>完成四段交付，每段保存一条成功轨迹和一条失败轨迹；将未接入真实模型的部分标记为离线验证。</li><li>先按任务书完成至少两个租户、真实模型适配、30 条种子评估与能力扩展，再准备 6 分钟演示：1 分钟问题与边界、2 分钟成功任务、2 分钟注入或恢复故障、1 分钟指标与限制。</li><li>用评分表自评后，请另一位开发者仅根据 README 复现；记录他遇到的第一处障碍并修复。</li></ol><div class="callout"><p><strong>验收：</strong>可展示有证据回答、拒绝越权、工单创建批准和恢复去重；评分报告包含任务数、配置、失败样例、费用来源与未验证项。</p></div><details><summary>完成后再展开：参考解与检查思路</summary><p>最小完整作品可以保留单 Agent 与两个只读工具，不必为了复杂而加入多 Agent。展示一条参数被审批绑定的演示工单创建；故障演示用写后超时证明只有一个 issueId。若只跑过夹具，诚实报告工程边界通过，真实模型任务成功率尚未测量，任务书的真实调用要求尚未完成。</p></details></section>
+<section id="quiz"><h2>检索练习：不看上文作答</h2><form class="quiz" data-quiz data-answer="1" data-correct="判断正确。请再用自己的话解释理由。" data-incorrect="这个选择尚未守住本课的关键边界。请重新推理，或展开解析。"><fieldset><legend>毕业作品最有价值的展示组合是哪项？</legend><label><input type="radio" name="answer" value="0"><span>成功截图加口号</span></label><label><input type="radio" name="answer" value="1"><span>成功任务加故障</span></label><label><input type="radio" name="answer" value="2"><span>框架数量加名称</span></label></fieldset><button type="submit">检查答案</button><button type="reset">重新作答</button><p class="feedback" data-feedback></p></form><details><summary>答案与原因（离线、无脚本也可阅读）</summary><p>答案：成功任务加故障。成功任务说明能做什么，故障展示说明边界是否有效；再配指标与复现步骤才能评估工程成熟度。</p></details></section>
+<section id="transfer"><h2>换个场景再判断</h2><p>评估集 20 个任务全部通过，可以对外承诺所有研发问题都能正确回答吗？</p><details><summary>迁移题参考答案</summary><p>不能。报告这 20 个任务的类别与覆盖，增加保留集和真实使用反馈。所有通过只说明当前样本结果；对未知资料、跨租户权限和模型波动继续保留限制说明。</p></details></section>
+<section id="reading"><h2>读原始资料</h2><p><strong>主阅读建议：</strong>主读 evals 的评估任务与结果判定，检查你的评分是否真正看了最终工单状态。</p><ul><li><a href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents">Anthropic · Demystifying evals for AI agents</a></li><li><a href="https://openai.com/index/harness-engineering/">OpenAI · Harness engineering</a></li></ul><p class="muted">上列来源于 2026-09-22 核对。练习中的数据、阈值和 TypeScript 内部接口为课程设计；产品接口、价格和可用性需在实际接入时按版本重核。</p></section>
+<footer><p>看懂不等于掌握。明天闭卷重做判断题，一周后用新的工单重做迁移题。把你的答案、运行结果或疑问发给我，我们一起定位下一步；未提交练习前，本课不记录为已掌握。</p><nav aria-label="前后课程"><a href="0038-deployment-and-operations.html">← 0038 上一课</a><a href="0040-graduation-and-transfer.html">0040 下一课 →</a></nav></footer>
+</main></body></html>

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0033 · 通过故障注入检验系统边界 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><a class="skip-link" href="#main">跳到课程正文</a><main id="main" class="narrow">
+<nav aria-label="课程导航"><a href="../index.html#curriculum">课程地图</a><a href="../reference/glossary.html">术语速查</a><a href="../labs/README.md">实验入口</a></nav>
+<header><div class="eyebrow">11 · 复杂任务与验证 / LESSON 0033</div><h1>通过故障注入检验系统边界</h1><p class="lede">用可控故障证明授权、停止、幂等和恢复契约确实有效。</p><div class="meta"><span>阅读 10–15 分钟 · 练习 20–40 分钟</span><span>来源核对：2026-09-22</span><span>应用侧 · TypeScript</span></div></header>
+<aside class="callout"><p><strong>本课交付：</strong>用可控故障证明授权、停止、幂等和恢复契约确实有效。</p><p><strong>前置：</strong><a href="0011-errors-and-retries.html">0011 区分失败类型，再决定是否重试</a>、<a href="0022-checkpoints-and-idempotency.html">0022 检查点、恢复与幂等</a>、<a href="0024-graders-and-regressions.html">0024 评分器、重复试验与回归判断</a>、<a href="0025-tracing-and-observability.html">0025 用执行轨迹定位问题</a></p><p>场景统一使用虚构文档与工单。代码注明示意时，需要接入你自己的项目上下文；本页不会发起模型调用。</p></aside>
+<section id="concept"><h2>先理解这个工程问题</h2>
+<p>正常路径只能证明系统在顺利时会工作。Agent 的错误经常发生在边界：工具已经写入但响应丢失、模型持续要求重试、审批后参数又被修改、进程在保存状态之前崩溃。测试需要主动制造这些时刻，观察外部效果。</p>
+<p>把测试分成确定性的运行时契约与统计性的模型评估。假模型可以精准输出连续三次同样的工具调用，用来验证去重；它不能证明真实模型会稳定选择正确工具。真实任务要在固定评分标准下重复运行，记录成功分布。<a href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents">Agent evals 的实践文章</a>区分轨迹、最终环境状态与评分器，这正好帮助我们选择断言位置。</p>
+<p>写入幂等必须在产生副作用的一侧成立。下面的 Set 只是单进程实验夹具；生产系统需要持久幂等键、原子性与并发控制。若先写工单后记录幂等键，崩溃窗口仍会重复写入。测试不能用一种碰不到竞态的实现来“证明”分布式正确性。</p>
+<p>具体失败：第一次请求实际新增了草稿但网络超时，第二次换了一个随机幂等键；最终出现两份相同草稿。正确修复是把同一个业务动作的键保存并重用，而不是把全局重试次数设为零。Node 的<a href="https://nodejs.org/api/test.html">内置测试运行器</a>足以开始这些离线契约测试。</p></section>
+<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code>// 单进程、同步内存夹具；只演示相同动作使用同一个键。
+const applied = new Set&lt;string&gt;();
+let writes = 0;
+function applyDraft(key: string) {
+  if (!applied.has(key)) {
+    applied.add(key);
+    writes += 1;
+  }
+  return { key };
+}
+applyDraft(&quot;tenant-demo:run-3:draft-1&quot;);
+// 模拟结果丢失后重试：仍传同一 key。
+applyDraft(&quot;tenant-demo:run-3:draft-1&quot;);
+if (writes !== 1) throw new Error(&quot;DUPLICATE_WRITE&quot;);</code></pre></section>
+<section id="practice"><h2>动手：把判断变成证据</h2><ol><li>建四个测试：已写入后超时、恢复后重复派发、审批过期、连续无进展工具请求。</li><li>每个测试先写不可变约束，例如“审批过期时写入次数为零”，再注入故障。</li><li>分别说明夹具证明了什么，以及仍需持久存储或真实模型测试的部分。</li></ol><div class="callout"><p><strong>验收：</strong>每种故障都有一个外部状态断言与一个停止原因断言；测试失败时能定位策略层；不把 mock 通过写成真实模型准确率。</p></div><details><summary>完成后再展开：参考解与检查思路</summary><p>已写入后超时与重复派发共用持久动作键，检查只有一份草稿。审批过期返回 needs_approval，不能继续写入。连续无进展在预算边界结束并保留已有证据。再增加两个 worker 同时恢复的测试来暴露租约竞争。</p></details></section>
+<section id="quiz"><h2>检索练习：不看上文作答</h2><form class="quiz" data-quiz data-answer="1" data-correct="判断正确。请再用自己的话解释理由。" data-incorrect="这个选择尚未守住本课的关键边界。请重新推理，或展开解析。"><fieldset><legend>写入成功但响应丢失，重试应如何处理动作键？</legend><label><input type="radio" name="answer" value="0"><span>生成全新键值</span></label><label><input type="radio" name="answer" value="1"><span>继续使用原键</span></label><label><input type="radio" name="answer" value="2"><span>删除全部键值</span></label></fieldset><button type="submit">检查答案</button><button type="reset">重新作答</button><p class="feedback" data-feedback></p></form><details><summary>答案与原因（离线、无脚本也可阅读）</summary><p>答案：继续使用原键。同一个业务动作必须沿用原键；否则接收端无法识别这是重试。</p></details></section>
+<section id="transfer"><h2>换个场景再判断</h2><p>所有离线测试通过，真实模型仍会引用错文档，是不是测试无用？</p><details><summary>迁移题参考答案</summary><p>离线测试证明运行时边界，不覆盖所有模型行为。把错误任务加入固定评估集，核对检索、上下文与证据对应评分；保留契约测试，同时增加针对实际失败的模型评估。</p></details></section>
+<section id="reading"><h2>读原始资料</h2><p><strong>主阅读建议：</strong>先阅读 evals 文中的任务、试验与结果概念，再用 Node test/assert 编写一条外部效果断言。</p><ul><li><a href="https://nodejs.org/api/test.html">Node.js · Test runner</a></li><li><a href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents">Anthropic · Demystifying evals for AI agents</a></li></ul><p class="muted">上列来源于 2026-09-22 核对。练习中的数据、阈值和 TypeScript 内部接口为课程设计；产品接口、价格和可用性需在实际接入时按版本重核。</p></section>
+<footer><p>看懂不等于掌握。明天闭卷重做判断题，一周后用新的工单重做迁移题。把你的答案、运行结果或疑问发给我，我们一起定位下一步；未提交练习前，本课不记录为已掌握。</p><nav aria-label="前后课程"><a href="0032-multi-agent-tradeoffs.html">← 0032 上一课</a><a href="0034-skills-and-progressive-disclosure.html">0034 下一课 →</a></nav></footer>
+</main></body></html>

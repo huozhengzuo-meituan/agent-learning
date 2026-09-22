@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0025 · 用执行轨迹定位问题 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><a class="skip-link" href="#main">跳到课程正文</a><main id="main" class="narrow">
+<nav aria-label="课程导航"><a href="../index.html#curriculum">课程地图</a><a href="../reference/glossary.html">术语速查</a><a href="../labs/README.md">实验入口</a></nav>
+<header><div class="eyebrow">09 · 可观测与安全 / LESSON 0025</div><h1>用执行轨迹定位问题</h1><p class="lede">从一次失败任务的执行轨迹，指出第一个偏离预期的步骤。</p><div class="meta"><span>阅读 10–15 分钟 · 练习 20–40 分钟</span><span>来源核对：2026-09-22</span><span>应用侧 · TypeScript</span></div></header>
+<aside class="callout"><p><strong>本课交付：</strong>从一次失败任务的执行轨迹，指出第一个偏离预期的步骤。</p><p><strong>前置：</strong><a href="0009-agent-loop.html">0009 亲手读懂并补完 Agent 循环</a>、<a href="0023-evaluation-datasets.html">0023 建立有代表性的评估任务集</a>、<a href="0024-graders-and-regressions.html">0024 评分器、重复试验与回归判断</a></p><p>场景统一使用虚构文档与工单。代码注明示意时，需要接入你自己的项目上下文；本页不会发起模型调用。</p></aside>
+<section id="concept"><h2>先理解这个工程问题</h2>
+<p>知识助手回答“未找到发布说明”，但库里明明有文档。只看最终回答，无法区分模型没检索、检索参数错误、权限过滤或结果丢失。先把任务拆成可观察操作：任务是一个 trace，模型请求、检索与工具执行各是一段 span，父子关系表示谁触发了谁。这个结构来自 <a href="https://opentelemetry.io/docs/concepts/signals/traces/">OpenTelemetry 的 trace/span 模型</a>。</p>
+<p>我们为每次任务记录 runId、步骤序号、操作名、耗时、结果类型，以及模型、提示、工具契约的版本。文档正文和用户问题默认不写入日志；记录文档 ID 与内容版本即可定位多数问题，需要原文时再使用受控的诊断通道。日志是执行证据，不是模型隐含思维的录音。</p>
+<p>本课案例：检索返回 3 个文档，过滤后剩 0 个，原因是运行上下文错误地使用了另一个租户。第一处异常是授权上下文构造；换模型无法修复它。另一种情况是返回 3 个合法结果却未进入下一轮上下文，那就追查消息组装。先定位分界，再提出可验证假设。</p>
+<p><a href="https://ai-sdk.dev/docs/ai-sdk-core/telemetry">当前 AI SDK telemetry 文档</a>使用注册集成的方式接入 OTel，注册后默认记录调用事件，并提供关闭输入、输出记录的选项。具体配置随 SDK 版本变化；下面用自定义事件结构练习诊断，不依赖某个 SDK。</p></section>
+<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code>type TraceEvent = {
+  runId: string; step: number; operation: string;
+  outcome: &quot;ok&quot; | &quot;error&quot;; resultCount?: number;
+  reason?: string;
+};
+const events: TraceEvent[] = [
+  { runId: &quot;r7&quot;, step: 1, operation: &quot;search&quot;, outcome: &quot;ok&quot;, resultCount: 3 },
+  { runId: &quot;r7&quot;, step: 2, operation: &quot;authorize&quot;, outcome: &quot;ok&quot;, resultCount: 0,
+    reason: &quot;tenant_mismatch&quot; },
+  { runId: &quot;r7&quot;, step: 3, operation: &quot;answer&quot;, outcome: &quot;ok&quot; }
+];
+// 工具执行成功，不等于业务任务成功。
+const firstSuspect = events.find(e =&gt; e.reason !== undefined);
+console.log(firstSuspect?.step); // 2</code></pre></section>
+<section id="practice"><h2>动手：把判断变成证据</h2><ol><li>为上面的轨迹补上“传入的租户由哪个服务端身份派生”这一条事件；只用虚构标识。</li><li>另造一条检索成功但上下文组装丢失结果的轨迹，用同一组字段区分两个故障。</li><li>为两条轨迹分别写一句根因假设和一个验证动作；检查日志中没有文档原文或凭证。</li></ol><div class="callout"><p><strong>验收：</strong>给出两个不同修复位置；能解释 outcome=ok 为什么仍可能导致任务失败；每条判断都能指向一个事件。</p></div><details><summary>完成后再展开：参考解与检查思路</summary><p>第一条在创建运行上下文时核对已认证用户与 tenantId 的映射，不能删除权限过滤。第二条对比检索输出的文档 ID 与下一次模型输入中的证据 ID。给 trace 增加证据数量和版本即可验证，无需默认保存全部敏感文本。</p></details></section>
+<section id="quiz"><h2>检索练习：不看上文作答</h2><form class="quiz" data-quiz data-answer="1" data-correct="判断正确。请再用自己的话解释理由。" data-incorrect="这个选择尚未守住本课的关键边界。请重新推理，或展开解析。"><fieldset><legend>检索正常、过滤后为零，最先检查什么？</legend><label><input type="radio" name="answer" value="0"><span>扩大模型参数</span></label><label><input type="radio" name="answer" value="1"><span>检查身份映射</span></label><label><input type="radio" name="answer" value="2"><span>删除权限过滤</span></label></fieldset><button type="submit">检查答案</button><button type="reset">重新作答</button><p class="feedback" data-feedback></p></form><details><summary>答案与原因（离线、无脚本也可阅读）</summary><p>答案：检查身份映射。检查身份映射。过滤可能正确地拦住了错误租户；删除它会把可用性问题变成数据越权。</p></details></section>
+<section id="transfer"><h2>换个场景再判断</h2><p>模型最后给出正确答案，但它在中间尝试调用一个未授权工具，这次运行算完全成功吗？</p><details><summary>迁移题参考答案</summary><p>不能只按答案计成功。应分别记业务结果与策略违规尝试，并验证执行层确实拦截。把此轨迹加入安全回归集，避免最终文本掩盖过程问题。</p></details></section>
+<section id="reading"><h2>读原始资料</h2><p><strong>主阅读建议：</strong>先读 OTel 的 Spans、Context Propagation 两节；画出“任务 → 模型 → 工具”的父子关系。</p><ul><li><a href="https://opentelemetry.io/docs/concepts/signals/traces/">OpenTelemetry · Traces</a></li><li><a href="https://ai-sdk.dev/docs/ai-sdk-core/telemetry">AI SDK · Telemetry</a></li></ul><p class="muted">上列来源于 2026-09-22 核对。练习中的数据、阈值和 TypeScript 内部接口为课程设计；产品接口、价格和可用性需在实际接入时按版本重核。</p></section>
+<footer><p>看懂不等于掌握。明天闭卷重做判断题，一周后用新的工单重做迁移题。把你的答案、运行结果或疑问发给我，我们一起定位下一步；未提交练习前，本课不记录为已掌握。</p><nav aria-label="前后课程"><a href="0024-graders-and-regressions.html">← 0024 上一课</a><a href="0026-cost-and-latency.html">0026 下一课 →</a></nav></footer>
+</main></body></html>
