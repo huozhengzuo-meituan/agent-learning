@@ -3,14 +3,15 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>0003 · 从服务端发起第一次模型调用 — Agent 工程学习</title>
 <meta name="description" content="读懂从 Node.js 服务端到模型提供商的一次最小请求，并识别凭据、模型选择、超时与结果的归属。">
-<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#main">跳到正文</a><main class="narrow" id="main">
 <nav aria-label="课程导航"><a href="../index.html#curriculum">全部课程</a><a href="../reference/glossary.html">术语速查</a></nav>
 <header><p class="eyebrow">01 · 模型调用基础 · LESSON 0003</p><h1>从服务端发起第一次模型调用</h1>
 <p class="lede">读懂从 Node.js 服务端到模型提供商的一次最小请求，并识别凭据、模型选择、超时与结果的归属。</p><p class="meta"><span>阅读与检查 15–20 分钟</span><span>动手任务 25 分钟</span><span>资料核对 2026-09-22</span></p></header>
 <aside class="callout"><strong>这一课的具体成果</strong><p>完成一个模型调用函数的配置审查；没有 API Key 也能用本地替身完成输入输出练习。</p><p><strong>前置知识：</strong>理解 async/await、环境变量和第 0002 课的输入边界。</p></aside>
 <section><h2>先把一次请求做完整</h2><p>第一次调用的目标很小：给模型一段虚构组件文档，让它回答一个具体问题。浏览器把问题发给你的服务端；服务端配置模型提供商并发起请求；结果回来后再决定向浏览器返回什么。你熟悉的请求校验、超时、错误显示仍然适用。</p><p>本课选择 AI SDK Core 与 Anthropic 官方适配器作为具体例子。<a href="https://ai-sdk.dev/docs/ai-sdk-core/generating-text">generateText 文档</a>描述一次文本生成；<a href="https://ai-sdk.dev/providers/ai-sdk-providers/anthropic">适配器文档</a>说明默认读取 ANTHROPIC_API_KEY 环境变量。学习目标是读懂请求边界，提供商选择不会改变这个能力。</p></section><section><h2>配置留在服务端</h2><p>不要把 API Key 写进前端源码、公开环境变量或提交到版本库。这里使用进程环境变量，并在调用前检查是否配置。模型标识通过 MODEL_ID 提供，避免把示例里的某个历史型号误当成所有账号都可用的默认值。实际接入时，选择账号支持的型号，并记录所安装依赖与模型配置。</p><p>下方片段没有在本工作区安装依赖，也没有调用收费 API。后续你决定做真实调用时，需要自己在服务端环境配置凭据，再安装与你项目锁定版本兼容的 <code>ai</code> 和 <code>@ai-sdk/anthropic</code>。本课的无钥匙路径可以先验证代码组织，不能证明远端模型质量。</p></section><section><h2>返回字符串之前，还要看状态</h2><p>给请求配置输出上限和取消信号，能够把最小调用的边界显式化。这里关闭自动重试，是为了让初次观察时“一次函数调用”不暗中包含多次网络尝试；第 0011 课再训练重试策略。<a href="https://ai-sdk.dev/docs/ai-sdk-core/settings">AI SDK settings</a>列出了这些选项和提供商兼容性说明。</p><p>拿到 text 只说明获得了生成文本，不等于内容与文档一致。还要核对完成原因、用量和回答是否遗漏关键条件。不要在日志里打印完整凭据或真实私密文档。本练习只记录“是否有回答”等有限信息；精细追踪在后面单独学习。</p></section>
-<section><h2>把过程放进 TypeScript</h2><p>官方接口教学片段，未安装依赖、未运行真实 API。运行环境是支持所用 API 的 Node.js 服务端；不要复制到客户端组件。</p><pre><code class="language-ts">import { generateText } from &quot;ai&quot;;
+<section><h2>把过程放进 TypeScript</h2><p>官方接口教学片段，未安装依赖、未运行真实 API。运行环境是支持所用 API 的 Node.js 服务端；不要复制到客户端组件。</p><pre><code class="language-typescript">import { generateText } from &quot;ai&quot;;
 import { anthropic } from &quot;@ai-sdk/anthropic&quot;;
 
 export async function answerQuestion(question: string) {

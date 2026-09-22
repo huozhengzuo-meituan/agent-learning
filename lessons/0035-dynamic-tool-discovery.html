@@ -1,5 +1,6 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0035 · 工具发现与代码执行式工具组合 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0035 · 工具发现与代码执行式工具组合 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#main">跳到课程正文</a><main id="main" class="narrow">
 <nav aria-label="课程导航"><a href="../index.html#curriculum">课程地图</a><a href="../reference/glossary.html">术语速查</a><a href="../labs/README.md">实验入口</a></nav>
 <header><div class="eyebrow">12 · 前沿能力扩展 / LESSON 0035</div><h1>工具发现与代码执行式工具组合</h1><p class="lede">按任务发现少量相关工具，并在受控执行环境中聚合数据后返回模型。</p><div class="meta"><span>阅读 10–15 分钟 · 练习 20–40 分钟</span><span>来源核对：2026-09-22</span><span>应用侧 · TypeScript</span></div></header>
@@ -9,7 +10,7 @@
 <p><a href="https://www.anthropic.com/engineering/advanced-tool-use">Anthropic 的高级工具使用文章</a>介绍按需发现与程序化调用方向；发布时部分能力为 beta，当前可用性应查目标平台文档，不把历史状态当成永久状态。<a href="https://www.anthropic.com/engineering/code-execution-with-mcp">代码执行结合 MCP 的文章</a>展示另一种思路：先在执行环境处理大量结果，再只把需要的摘要交给模型。</p>
 <p>例如统计 500 个工单中的高优先级数量，不必让模型读完全部正文。代码调用受控工具、过滤并聚合，返回计数、采样证据 ID 与是否截断。保留审计轨迹能使结果可复核。程序执行不自动保证事实正确，字段语义、分页与时间范围仍要验证。</p>
 <p>具体失败场景：工具只返回前 100 个工单，程序把其中 12 个高优先级计为“全量 12 个”。这是分页覆盖错误，节省 token 不能掩盖它。下面代码要求调用方提供完整性标志，结果不完整时拒绝输出全量结论；工具网关和沙箱负责实际权限与隔离。</p></section>
-<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code>type Ticket = { id: string; priority: &quot;high&quot; | &quot;normal&quot; };
+<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code class="language-typescript">type Ticket = { id: string; priority: &quot;high&quot; | &quot;normal&quot; };
 function summarize(rows: Ticket[], complete: boolean) {
   const high = rows.filter(row =&gt; row.priority === &quot;high&quot;);
   return {

@@ -1,5 +1,6 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0039 · 完成研发知识助手综合项目 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0039 · 完成研发知识助手综合项目 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#main">跳到课程正文</a><main id="main" class="narrow">
 <nav aria-label="课程导航"><a href="../index.html#curriculum">课程地图</a><a href="../reference/glossary.html">术语速查</a><a href="../labs/README.md">实验入口</a></nav>
 <header><div class="eyebrow">13 · 运行与综合作品 / LESSON 0039</div><h1>完成研发知识助手综合项目</h1><p class="lede">把课程能力整合成一个有演示、故障证据和评分报告的研发知识助手。</p><div class="meta"><span>阅读 10–15 分钟 · 练习 20–40 分钟（综合项目另计）</span><span>来源核对：2026-09-22</span><span>应用侧 · TypeScript</span></div></header>
@@ -9,7 +10,7 @@
 <p>交付与任务书统一分为四段：A 完成只读 Agent，包含真实模型、工具循环、预算和引用；B 加入前端交互、批准与幂等写入；C 加入恢复、长任务和一种能力扩展；D 完成评估、故障演练与作品交付。每段交付都可演示，完整任务规范与评分表见 <a href="../CAPSTONE.md">CAPSTONE.md</a>，起步练习见 <a href="../labs/README.md">labs</a>。</p>
 <p>与任务书统一的验收权重为：任务完成与证据质量 25 分、执行可靠性 20 分、权限与信任边界 20 分、可观测与评估 20 分、产品体验与工程表达 15 分。建议至少 80 分，且未经批准的副作用、跨租户泄露、密钥外露等关键边界样本全部通过。这是教学阈值，不能证明生产系统不存在其他风险。</p>
 <p>按 <a href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents">evals 实践</a>同时查看轨迹与最终状态；按 <a href="https://openai.com/index/harness-engineering/">harness 工程案例</a>为执行者提供可查的规格与反馈。具体失败场景是演示一次成功后宣称系统稳定：你还需要普通、证据缺失、过期、注入、取消和恢复等任务类别，以及真实模型测试的明确覆盖范围。</p></section>
-<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code>type DemoEvidence = {
+<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code class="language-typescript">type DemoEvidence = {
   runId: string;
   answerEvidenceIds: string[];
   approvalId?: string;

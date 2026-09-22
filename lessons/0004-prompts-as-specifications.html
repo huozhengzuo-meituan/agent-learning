@@ -3,14 +3,15 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>0004 · 把提示写成可验证的任务规格 — Agent 工程学习</title>
 <meta name="description" content="把“帮我回答得专业一点”改写为有输入边界、证据要求和可检查结果的任务规格。">
-<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#main">跳到正文</a><main class="narrow" id="main">
 <nav aria-label="课程导航"><a href="../index.html#curriculum">全部课程</a><a href="../reference/glossary.html">术语速查</a></nav>
 <header><p class="eyebrow">02 · 可用的模型接口 · LESSON 0004</p><h1>把提示写成可验证的任务规格</h1>
 <p class="lede">把“帮我回答得专业一点”改写为有输入边界、证据要求和可检查结果的任务规格。</p><p class="meta"><span>阅读与检查 15–20 分钟</span><span>动手任务 25 分钟</span><span>资料核对 2026-09-22</span></p></header>
 <aside class="callout"><strong>这一课的具体成果</strong><p>写出一份可用三个反例检查的组件文档问答提示，并说明代码还必须承担哪些约束。</p><p><strong>前置知识：</strong>读懂第 0003 课调用片段，知道 instructions 与用户问题的位置。</p></aside>
 <section><h2>提示首先是一份任务说明</h2><p>“你是最资深的前端专家，请完美回答”没有告诉模型可依据什么，也没有定义资料不足时如何处理。把它换成工程规格：任务是什么、输入包含什么、哪些信息有来源、输出满足什么条件。这样做的收益是你能设计检查，而不是只能凭感觉评价措辞。</p><p>例如任务是解释 Button v2 的 loading。输入包含明确版本的文档片段，输出应说明点击行为并附文档标识。缺少 disabled 的说明时，应把这一点列为未知，而不是补出看似常见的组件行为。任务规格使“没有编造”成为可以逐条核验的约定。</p></section><section><h2>给规则、数据和例子各自的位置</h2><p>可信的应用规则放在服务端 instructions；用户问题与文档内容作为被处理的数据传入。<a href="https://ai-sdk.dev/docs/foundations/prompts">当前 AI SDK prompts 文档</a>使用这样的接口区分指令和消息。用清楚的分段或数据结构有利于理解来源，但分隔符本身不是权限系统，也不能保证抵御恶意内容。</p><p>示例应覆盖边界，而非只给一个永远成功的答案。例如同时给“文档支持结论”和“文档没有该属性”两种结果。过多风格指令会分散任务重点；本课只保留证据与不确定性规则。多轮 Agent 的上下文策略会继续变化，但这份任务规格应能作为可版本化的基础。</p></section><section><h2>先写检查，再看答案</h2><p>提示的改动需要有观察对象。本课使用三条小样本：文档明确支持、文档缺少说明、两份版本信息冲突。它们不是完整评估集，但足以暴露“每个问题都强行给肯定答案”的缺陷。先写预期边界，再比较输出，能避免看到流畅答案后临时放宽标准。</p><p>不要要求公开模型全部内部推理来当作正确性证据。对用户真正有用的是简洁解释、可查来源与限制。输出引用是否存在、版本是否匹配，可以用程序检查；最终解释是否由文档支持，还要结合样本评估。提示负责描述期望，程序负责可靠执行硬约束。</p></section>
-<section><h2>把过程放进 TypeScript</h2><p>这是自定义的提示构造片段，不会发起 API 调用。把规则与待处理材料分开，后续可将它们传给第 0003 课的调用函数。</p><pre><code class="language-ts">const instructions = [
+<section><h2>把过程放进 TypeScript</h2><p>这是自定义的提示构造片段，不会发起 API 调用。把规则与待处理材料分开，后续可将它们传给第 0003 课的调用函数。</p><pre><code class="language-typescript">const instructions = [
   &quot;任务：回答虚构组件文档问题。&quot;,
   &quot;只依据本次提供的文档，不补写未知属性。&quot;,
   &quot;先给结论，再列出支持结论的文档 ID。&quot;,

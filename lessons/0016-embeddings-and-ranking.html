@@ -3,7 +3,8 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="解释分块如何影响证据完整性，并合并词法与向量候选得到可审计的排序。">
 <title>0016 · 向量检索、分块与排序 — TypeScript Agent 工程</title>
-<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#lesson">跳到课程正文</a>
 <main class="narrow" id="lesson">
 <nav aria-label="课程导航">
@@ -22,7 +23,7 @@
  <h2>分块时留住“这段话在说谁”</h2>
  <p>一段只有“从 2.3 开始默认开启”的片段无法回答哪个功能。按标题、函数或完整条款分块，记录 documentId、section、version、contentHash、位置和权限信息；读取时可扩展相邻段落。Azure 的分块文档比较固定长度和结构分块，适合用来设计实验，而非把某个长度当成通用最优值。<a href="https://learn.microsoft.com/en-us/azure/search/vector-search-how-to-chunk-documents">资料：Chunk documents</a>。</p>
  <h2>合并排名，避免硬加异尺度分数</h2>
- <p>词法分数与向量相似度不在同一尺度，直接相加容易偏向某一侧。下面实现课程版 reciprocal rank fusion：每份排名按位置贡献 <code>1 / (k + rank)</code>，再合并同一 chunk。这里 k=60 是演示选择，要在你的数据上测量；输入必须已经完成权限过滤。</p><pre><code>function fuse(rankings: string[][], k = 60): string[] {
+ <p>词法分数与向量相似度不在同一尺度，直接相加容易偏向某一侧。下面实现课程版 reciprocal rank fusion：每份排名按位置贡献 <code>1 / (k + rank)</code>，再合并同一 chunk。这里 k=60 是演示选择，要在你的数据上测量；输入必须已经完成权限过滤。</p><pre><code class="language-typescript">function fuse(rankings: string[][], k = 60): string[] {
   const scores = new Map&lt;string, number&gt;();
   for (const list of rankings) {
     [...new Set(list)].forEach((id, index) =&gt; {

@@ -3,7 +3,8 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="实现一个按租户、用户和会话授权读取的状态入口，解释“数据库里有历史”和“模型能看到历史”的区别。">
 <title>0013 · 会话状态与用户隔离 — TypeScript Agent 工程</title>
-<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#lesson">跳到课程正文</a>
 <main class="narrow" id="lesson">
 <nav aria-label="课程导航">
@@ -20,7 +21,7 @@
  <p>在研发知识助手里，用户 A 正在分析项目甲，用户 B 正在分析项目乙。浏览器都提交了 <code>threadId="today"</code>。如果服务端只按这个字符串取历史，两个人的上下文就会混在一起。另一个常见错误是相信客户端传来的完整消息数组：攻击者可以塞入伪造的工具结果，让模型以为它已经读过某份私有文档。</p>
  <p>本课把三层状态分开：<strong>持久会话</strong>保存授权范围内的事件；<strong>运行状态</strong>保存当前任务的步骤、预算和待完成调用；<strong>模型输入</strong>是运行时本次挑出的材料。LangGraph 的官方文档区分线程检查点和跨线程 Store，这个划分可借来理解职责，但不会自动替应用实现用户鉴权。<a href="https://docs.langchain.com/oss/javascript/langgraph/persistence">资料：Persistence</a>。</p>
  <h2>身份来自服务器，会话标识来自请求</h2>
- <p>服务端先从已验证的登录态获得 principal，再读取会话并检查归属。会话 ID 即使很难猜，也不等于访问权限。不要让模型选择 tenantId；它只负责业务推理。下面通过返回副本避免调用方意外修改仓库，实际服务还要用数据库的事务或版本检查处理并发写入。</p><pre><code>type Principal = { tenantId: string; userId: string };
+ <p>服务端先从已验证的登录态获得 principal，再读取会话并检查归属。会话 ID 即使很难猜，也不等于访问权限。不要让模型选择 tenantId；它只负责业务推理。下面通过返回副本避免调用方意外修改仓库，实际服务还要用数据库的事务或版本检查处理并发写入。</p><pre><code class="language-typescript">type Principal = { tenantId: string; userId: string };
 type Thread = Principal &amp; {
   id: string; revision: number; events: string[];
 };

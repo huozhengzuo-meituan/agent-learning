@@ -3,7 +3,8 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="设计可追溯、可修正、可删除的记忆记录，避免旧信息和模型猜测变成永久事实。">
 <title>0018 · 记忆的写入、读取与失效 — TypeScript Agent 工程</title>
-<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#lesson">跳到课程正文</a>
 <main class="narrow" id="lesson">
 <nav aria-label="课程导航">
@@ -20,7 +21,7 @@
  <p>用户说“这个项目暂时使用 Node 22”，Agent 若记成“用户永远只用 Node 22”，下一次处理另一个仓库就会误导。记忆的难点不是存 JSON，而是确定内容属于谁、适用于什么、证据在哪里、何时失效，以及当前请求是否应该读取。</p>
  <p>LangChain 将线程内状态与跨线程记忆分开，还讨论同步写入和后台写入的取舍。本课用更窄的项目事实记录来练习这些机制。<a href="https://docs.langchain.com/oss/javascript/concepts/memory">资料：Memory overview</a>。后台提取可能减少用户等待，却可能在用户刚刚纠正信息后把旧版本再次写入，所以版本与删除标记仍不可省。</p>
  <h2>先提候选，再按政策落库</h2>
- <p>我们的示例应用采用明确政策：仅保存用户指定的长期偏好或已读回的项目事实；助手推测只放当前运行状态。它是课程项目的选择，不是所有产品的唯一规则。记忆必须保留 sourceEventId；派生摘要不能反过来伪装成用户原话。</p><pre><code>type Memory = {
+ <p>我们的示例应用采用明确政策：仅保存用户指定的长期偏好或已读回的项目事实；助手推测只放当前运行状态。它是课程项目的选择，不是所有产品的唯一规则。记忆必须保留 sourceEventId；派生摘要不能反过来伪装成用户原话。</p><pre><code class="language-typescript">type Memory = {
   id: string; tenantId: string; userId: string; projectId: string;
   text: string; sourceEventId: string; revision: number;
   state: &quot;active&quot; | &quot;superseded&quot; | &quot;deleted&quot;;

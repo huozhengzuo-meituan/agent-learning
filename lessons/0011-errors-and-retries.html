@@ -3,14 +3,15 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>0011 · 区分失败类型，再决定是否重试 — Agent 工程学习</title>
 <meta name="description" content="按失败原因、重复执行风险和剩余预算，决定重试、修复输入或直接停止。">
-<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#main">跳到正文</a><main class="narrow" id="main">
 <nav aria-label="课程导航"><a href="../index.html#curriculum">全部课程</a><a href="../reference/glossary.html">术语速查</a></nav>
 <header><p class="eyebrow">04 · 执行控制 · LESSON 0011</p><h1>区分失败类型，再决定是否重试</h1>
 <p class="lede">按失败原因、重复执行风险和剩余预算，决定重试、修复输入或直接停止。</p><p class="meta"><span>阅读与检查 15–20 分钟</span><span>动手任务 35 分钟</span><span>资料核对 2026-09-22</span></p></header>
 <aside class="callout"><strong>这一课的具体成果</strong><p>写出一张失败处理表，并验证不能把所有异常都放进同一个无限重试循环。</p><p><strong>前置知识：</strong>完成第 0010 课，理解尝试次数与逻辑步骤的区别。</p></aside>
 <section><h2>失败不只有一种修复方式</h2><p>网络瞬时故障可能稍后成功；缺少 API Key 需要修配置；输入不符合 schema 需要修参数；文档没有提供相关信息需要补证据。这些失败如果全部“原样再试”，只会浪费预算。先把外部错误归一化为应用能理解的类别，再做恢复决策。</p><p>还要分清业务上的无结果与技术异常。搜索返回空列表可以是正常结果，不等于网络请求失败；工具抛出权限错误也不应被包装成“没有相关文档”。对于模型来说，两者代表不同的观察，影响下一步动作。错误类别设计得清楚，重试策略就不需要依靠猜测错误文案。</p></section><section><h2>重试前先问能否安全重复</h2><p>读一份文档通常可以重复，但提交工单、发消息和扣款可能产生重复副作用。请求超时只说明没有及时收到结果，不证明对端没有执行。如果不清楚动作是否生效，应先核对状态，或通过幂等机制恢复；第 0022 课会专门展开。</p><p>本课只对标记为可安全重试的读取动作给出建议。延迟采用递增等待，并留有次数与总截止时间。真实服务遇到限流时还应遵守服务端的 Retry-After 等明确约定，而不是所有错误都固定一秒再次冲击同一接口。</p></section><section><h2>避免两层重试相乘</h2><p>你的循环重试三次，SDK 内部又重试两次，最终网络尝试数可能远多于你以为的三次。<a href="https://ai-sdk.dev/docs/ai-sdk-core/settings">AI SDK settings</a>提供 maxRetries 配置；<a href="https://ai-sdk.dev/docs/ai-sdk-core/error-handling">当前错误处理文档</a>还区分调用开始阶段与流开始后的错误恢复。接入时明确由哪一层控制，并记录实际尝试次数。</p><p>流式场景尤其要核对恢复会不会重放先前工具、重复提交片段或保留旧结果。当前文档给出了 streamRetries 的专门语义，但不同锁定版本可能不同。本课不把它简化成“流断了就重跑整个 Agent”，而是先保留逻辑步骤、网络尝试和工具副作用的边界。</p></section>
-<section><h2>把过程放进 TypeScript</h2><p>自定义错误归一化后的重试判定片段。它只输出等待建议，不发起网络请求；真实响应的错误码需要在适配器层转换。</p><pre><code class="language-ts">type Failure = {
+<section><h2>把过程放进 TypeScript</h2><p>自定义错误归一化后的重试判定片段。它只输出等待建议，不发起网络请求；真实响应的错误码需要在适配器层转换。</p><pre><code class="language-typescript">type Failure = {
   kind: &quot;transient&quot; | &quot;rate-limit&quot; | &quot;auth&quot; | &quot;invalid-input&quot; | &quot;cancelled&quot;;
   safeToRepeat: boolean;
   retryAfterMs?: number;

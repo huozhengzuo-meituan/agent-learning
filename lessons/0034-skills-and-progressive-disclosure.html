@@ -1,5 +1,6 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0034 · Skills 与渐进式上下文加载 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0034 · Skills 与渐进式上下文加载 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#main">跳到课程正文</a><main id="main" class="narrow">
 <nav aria-label="课程导航"><a href="../index.html#curriculum">课程地图</a><a href="../reference/glossary.html">术语速查</a><a href="../labs/README.md">实验入口</a></nav>
 <header><div class="eyebrow">12 · 前沿能力扩展 / LESSON 0034</div><h1>Skills 与渐进式上下文加载</h1><p class="lede">把一项领域方法封装成 Skill，并验证按需加载的触发与边界。</p><div class="meta"><span>阅读 10–15 分钟 · 练习 20–40 分钟</span><span>来源核对：2026-09-22</span><span>应用侧 · TypeScript</span></div></header>
@@ -9,7 +10,7 @@
 <p><a href="https://agentskills.io/specification">Agent Skills 开放规范</a>描述 SKILL.md 的元数据与正文，以及 scripts、references、assets 等目录。渐进加载先暴露名称和描述，匹配任务时读取正文，只有需要时才打开具体参考。这样可以降低无关内容对上下文的挤占；能否正确触发仍要评估。</p>
 <p>描述要包含适用任务和边界。只写“帮助处理文档”会过于宽泛；本课练习写成“比较两个指定发布版本，输出每项变更的来源与未确认差异；不执行发布”。这份方法应指导行动，却不自动增加写入权限。受信任的安装来源、版本固定、脚本审查与运行隔离仍由宿主负责。</p>
 <p>具体失败：助手被问“介绍发布流程”时加载了自动发布 Skill，并尝试执行脚本。需要同时修复过宽触发描述和权限门禁。<a href="https://agentskills.io/client-implementation/adding-skills-support">官方接入指南</a>讨论如何把 Skills 集成进客户端；每个产品的启用方式与扩展字段可能不同，规范文件存在不代表你的运行时已经支持全部行为。</p></section>
-<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code>// 目录内容示意；name/description 放在 SKILL.md 的 YAML frontmatter。
+<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code class="language-none">// 目录内容示意；name/description 放在 SKILL.md 的 YAML frontmatter。
 release-diff/
   SKILL.md
   references/
@@ -18,11 +19,11 @@ release-diff/
     compare.ts
 
 // SKILL.md 示例（不是 TypeScript 代码）
----
+</code></pre><pre><code class="language-yaml">---
 name: release-diff
 description: 比较两个指定发布版本，输出变更证据与缺口；不执行发布。
 ---
-1. 确認两个版本和用户可访问的资料范围。
+</code></pre><pre><code class="language-none">1. 确認两个版本和用户可访问的资料范围。
 2. 需要判断引用时再读取 references/evidence-rules.md。
 3. 每个结论列出文档 ID、版本与证据片段位置。
 4. 缺少来源就标记未确认；不要补造事实。</code></pre></section>

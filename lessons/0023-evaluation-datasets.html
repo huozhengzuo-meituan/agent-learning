@@ -3,7 +3,8 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="把用户需求转化为可重复评估的任务，记录环境终态、边界场景与保留集。">
 <title>0023 · 建立有代表性的评估任务集 — TypeScript Agent 工程</title>
-<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#lesson">跳到课程正文</a>
 <main class="narrow" id="lesson">
 <nav aria-label="课程导航">
@@ -20,7 +21,7 @@
  <p>知识助手说“已经创建草稿任务”时，评分器应到测试仓库检查任务是否存在、字段是否正确，而不是看答案有没有“创建成功”四个字。Anthropic 的 2026 年 Agent 评估文章明确区分一次尝试的执行轨迹与环境终态。<a href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents">资料：Agent evals</a>。</p>
  <p>先把项目的关键承诺写下来：回答有据可查；没有资料时不编造；跨租户资料不可读；写入要批准；失败不能重复创建。每个承诺至少有正反两个场景。只测“有资料就回答”会奖励总是回答的系统，却测不出该停止的时候能不能停止。</p>
  <h2>一个任务要带上可重建的世界</h2>
- <p>题目不只有 prompt，还包括文档版本、权限、初始数据库、工具故障注入、期望结果和预算。每次 trial 从同一干净 fixture 开始；不要让前一次留下的任务、记忆或索引污染下一次。下面描述数据，不会自动调用模型。</p><pre><code>type EvalCase = {
+ <p>题目不只有 prompt，还包括文档版本、权限、初始数据库、工具故障注入、期望结果和预算。每次 trial 从同一干净 fixture 开始；不要让前一次留下的任务、记忆或索引污染下一次。下面描述数据，不会自动调用模型。</p><pre><code class="language-typescript">type EvalCase = {
   id: string; category: &quot;answer&quot; | &quot;abstain&quot; | &quot;permission&quot; | &quot;write&quot;;
   input: string; fixture: string; split: &quot;dev&quot; | &quot;holdout&quot;;
   expected: {

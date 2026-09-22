@@ -1,5 +1,6 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0040 · 用新需求证明能力可以迁移 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0040 · 用新需求证明能力可以迁移 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#main">跳到课程正文</a><main id="main" class="narrow">
 <nav aria-label="课程导航"><a href="../index.html#curriculum">课程地图</a><a href="../reference/glossary.html">术语速查</a><a href="../labs/README.md">实验入口</a></nav>
 <header><div class="eyebrow">13 · 运行与综合作品 / LESSON 0040</div><h1>用新需求证明能力可以迁移</h1><p class="lede">面对一个未做过的需求，独立选择架构、验证取舍并解释失败。</p><div class="meta"><span>阅读 10–15 分钟 · 练习 20–40 分钟（综合项目另计）</span><span>来源核对：2026-09-22</span><span>应用侧 · TypeScript</span></div></header>
@@ -9,7 +10,7 @@
 <p>先写一页设计：用户需要什么结果，输入信任级别是什么，工具能读写什么，何时需要动态探索，成功怎样判断。比较确定性程序、单次模型调用与单 Agent 三个基线；只有独立分支真的带来收益才考虑多 Agent。需要跨会话运行时，再比较自己维护运行时与托管服务。</p>
 <p>以 <a href="https://modelcontextprotocol.io/specification/2026-07-28/architecture">MCP 的职责边界</a>解释连接层，以 <a href="https://openai.com/index/introducing-the-agents-api/">2026-09 的 Agents API 公测介绍</a>讨论托管选项；公测能力只能作为候选，不能忽略账号、地域、隐私和版本限制。文章介绍不是你的性能测试结果。</p>
 <p>评分关注迁移能力：需求与范围 20 分、最小合理架构 20 分、边界和失败处理 25 分、可复现评估 25 分、口头取舍 10 分。具体失败题：同一 issue 在两个来源出现，时间戳不同，Agent 把两条都当成新问题并重复计数。你需找出身份去重与证据冲突处理的位置，而非单纯增加提示长度。</p></section>
-<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code>type Issue = { source: string; project: string; number: number; updatedAt: string };
+<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code class="language-typescript">type Issue = { source: string; project: string; number: number; updatedAt: string };
 function identity(issue: Issue): string {
   return `${issue.project}:${issue.number}`;
 }

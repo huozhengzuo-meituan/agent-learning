@@ -1,5 +1,6 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0029 · MCP 连接了什么，留下了什么 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0029 · MCP 连接了什么，留下了什么 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#main">跳到课程正文</a><main id="main" class="narrow">
 <nav aria-label="课程导航"><a href="../index.html#curriculum">课程地图</a><a href="../reference/glossary.html">术语速查</a><a href="../labs/README.md">实验入口</a></nav>
 <header><div class="eyebrow">10 · 协议与框架 / LESSON 0029</div><h1>MCP 连接了什么，留下了什么</h1><p class="lede">画出 MCP host、client、server 的责任，并保留应用自己的授权与评估。</p><div class="meta"><span>阅读 10–15 分钟 · 练习 20–40 分钟</span><span>来源核对：2026-09-22</span><span>应用侧 · TypeScript</span></div></header>
@@ -9,7 +10,7 @@
 <p>本课核对的是 <a href="https://modelcontextprotocol.io/specification/2026-07-28/architecture">2026-07-28 规范架构</a>：请求携带协议版本与能力信息，server/discover 可用于发现能力。旧教程中的连接初始化与状态假设可能属于早期版本，不能直接与这里的消息字段拼接。工程接入要记录协议版本、SDK 版本和对端实际能力。</p>
 <p>工具描述帮助模型选择，但工具注解不替代安全策略；返回文本也是外部内容。宿主应把 server 的工具映射成内部契约，执行前验证租户与授权，执行后规范化错误和输出。根据<a href="https://modelcontextprotocol.io/specification/2026-07-28/server/tools">工具规范</a>区分协议错误与工具执行错误，避免把“业务找不到文档”当成网络故障反复重试。</p>
 <p>具体失败场景：本地 readDoc 原本检查租户，迁移到 MCP 后开发者只转发参数，误以为远程连接已经鉴权便足够。连接身份只能说明谁在调用，不自动证明他可以访问每个资源。桥接层与资源服务必须继续校验；下方接口仅是课程内部适配器，并非 MCP wire schema。</p></section>
-<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code>type InternalToolResult =
+<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code class="language-typescript">type InternalToolResult =
   | { ok: true; evidenceIds: string[] }
   | { ok: false; code: &quot;DENIED&quot; | &quot;NOT_FOUND&quot; | &quot;UNAVAILABLE&quot; };
 type ToolPort = {

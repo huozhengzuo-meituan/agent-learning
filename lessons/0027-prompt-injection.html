@@ -1,5 +1,6 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0027 · 识别提示注入与信任边界 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0027 · 识别提示注入与信任边界 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#main">跳到课程正文</a><main id="main" class="narrow">
 <nav aria-label="课程导航"><a href="../index.html#curriculum">课程地图</a><a href="../reference/glossary.html">术语速查</a><a href="../labs/README.md">实验入口</a></nav>
 <header><div class="eyebrow">09 · 可观测与安全 / LESSON 0027</div><h1>识别提示注入与信任边界</h1><p class="lede">把外部材料里的指令与用户授权分开，并用程序阻止越界动作。</p><div class="meta"><span>阅读 10–15 分钟 · 练习 20–40 分钟</span><span>来源核对：2026-09-22</span><span>应用侧 · TypeScript</span></div></header>
@@ -9,7 +10,7 @@
 <p>标注来源和使用分隔符有助于模型理解，但不能成为唯一防线。研发知识助手的权限来自服务端认证、用户请求与执行策略；外部文档不能增加工具白名单，模型自己声称“用户同意了”也不能创造审批记录。内容相关性与指令权威是两件事。</p>
 <p>以下示例用三个同时成立的条件做最终校验：租户一致、工具已授权、目标属于允许资源。对象由服务端构造，不能让模型填写 allowedTools。真正系统还要在资源服务端再次鉴权，避免工具网关检查后资源状态已经变化。MCP 接入也要遵守自己的<a href="https://modelcontextprotocol.io/docs/2026-07-28/tutorials/security/security_best_practices">授权与安全要求</a>。</p>
 <p>具体失败场景：模型正确识别了注入文本，却仍在“验证是否安全”时调用上传工具。只看最终答复会误以为防御成功。练习要检查工具实际执行次数，以及信息是否已泄出；允许安全地回答原始发布问题，不必把所有包含攻击文本的任务都直接放弃。</p></section>
-<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code>type Capability = {
+<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code class="language-typescript">type Capability = {
   tenantId: string; tools: ReadonlySet&lt;string&gt;; resources: ReadonlySet&lt;string&gt;;
 };
 type Call = { tool: string; tenantId: string; resourceId: string };

@@ -1,5 +1,6 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0030 · 把手写循环映射到框架 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0030 · 把手写循环映射到框架 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#main">跳到课程正文</a><main id="main" class="narrow">
 <nav aria-label="课程导航"><a href="../index.html#curriculum">课程地图</a><a href="../reference/glossary.html">术语速查</a><a href="../labs/README.md">实验入口</a></nav>
 <header><div class="eyebrow">10 · 协议与框架 / LESSON 0030</div><h1>把手写循环映射到框架</h1><p class="lede">把手写 Agent 循环迁入框架，同时用契约测试保持行为边界。</p><div class="meta"><span>阅读 10–15 分钟 · 练习 20–40 分钟</span><span>来源核对：2026-09-22</span><span>应用侧 · TypeScript</span></div></header>
@@ -9,7 +10,7 @@
 <p><a href="https://ai-sdk.dev/docs/agents/building-agents">当前 AI SDK 的 ToolLoopAgent</a>集中配置模型、instructions 和工具；<a href="https://ai-sdk.dev/docs/agents/loop-control">循环控制</a>使用 stopWhen 与 prepareStep，本次文档的步数条件名为 isStepCount。具体 API 绑定当前文档，安装时必须按锁定版本核对，不能把旧教程的参数名直接混用。</p>
 <p>最大模型步骤并不等于最大工具执行次数：一个模型响应可能请求多个工具；费用和执行次数仍要在工具网关独立计数。框架内置的停止条件也不能替代业务完成判据。能生成最终文字，不等于文档证据齐全或草稿已通过审批。</p>
 <p>具体失败场景：迁移后工具函数直接写工单，原来在执行器中的审批被绕过；界面仍显示一个确认按钮，但后端已经执行。先用同一份假模型轨迹测试两个实现，再连接真实模型。迁移应按“调用模型、提出动作、批准动作、执行动作”分别观察。</p></section>
-<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code>// API 形状示例：需安装匹配版本的 ai 并配置 model/tools 后使用。
+<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code class="language-typescript">// API 形状示例：需安装匹配版本的 ai 并配置 model/tools 后使用。
 import { ToolLoopAgent, isStepCount } from &quot;ai&quot;;
 
 // model 与 tools 由你的应用注入；工具网关继续负责身份、预算和审批。

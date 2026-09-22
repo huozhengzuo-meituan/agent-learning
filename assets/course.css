@@ -101,6 +101,30 @@ footer { margin-top: 3rem; padding-block: 1.5rem; border-top: 1px solid var(--li
 .skip-link { position: absolute; top: .75rem; left: 1rem; padding: .5rem 1rem; background: var(--surface); transform: translateY(-180%); z-index: 10; }
 .skip-link:focus { transform: translateY(0); }
 
+/* Local Prism tokens; keep inline code and the surrounding reading theme intact. */
+pre code .token.comment,
+pre code .token.prolog,
+pre code .token.doctype,
+pre code .token.cdata { color: #526458; font-style: italic; }
+pre code .token.punctuation { color: #47574f; }
+pre code .token.keyword,
+pre code .token.atrule,
+pre code .token.boolean { color: #75418a; }
+pre code .token.string,
+pre code .token.char,
+pre code .token.regex { color: #25623e; }
+pre code .token.number,
+pre code .token.constant { color: #8a431b; }
+pre code .token.function,
+pre code .token.class-name,
+pre code .token.builtin { color: #1e577f; }
+pre code .token.operator,
+pre code .token.property,
+pre code .token.parameter,
+pre code .token.key { color: #70451c; }
+pre code .token.important { font-weight: 650; }
+pre code .token { background: transparent; text-shadow: none; }
+
 @media (max-width: 600px) {
   body { font-size: 16px; }
   main, .shell, main.shell, .narrow, main.narrow { width: calc(100% - 2rem); }
@@ -137,6 +161,7 @@ footer { margin-top: 3rem; padding-block: 1.5rem; border-top: 1px solid var(--li
   .grid { grid-template-columns: 1fr 1fr; }
   .table-wrap, pre { overflow: visible; }
   pre, pre code { white-space: pre-wrap; overflow-wrap: anywhere; }
+  pre code .token[class] { color: #000; }
   table { font-size: 9pt; }
   tr { break-inside: avoid; }
   thead { display: table-header-group; }

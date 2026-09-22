@@ -3,14 +3,15 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>0005 · 把模型输出变成可校验的数据 — Agent 工程学习</title>
 <meta name="description" content="把自然语言回答转换为可校验的数据，并明确区分结构正确与业务正确。">
-<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#main">跳到正文</a><main class="narrow" id="main">
 <nav aria-label="课程导航"><a href="../index.html#curriculum">全部课程</a><a href="../reference/glossary.html">术语速查</a></nav>
 <header><p class="eyebrow">02 · 可用的模型接口 · LESSON 0005</p><h1>把模型输出变成可校验的数据</h1>
 <p class="lede">把自然语言回答转换为可校验的数据，并明确区分结构正确与业务正确。</p><p class="meta"><span>阅读与检查 15–20 分钟</span><span>动手任务 30 分钟</span><span>资料核对 2026-09-22</span></p></header>
 <aside class="callout"><strong>这一课的具体成果</strong><p>设计一个“结论 + 文档 ID + 是否缺资料”的返回结构，再用两个非法样本检验它。</p><p><strong>前置知识：</strong>理解 TypeScript 类型和第 0004 课的任务规格；知道 JSON.parse 的基本用途。</p></aside>
 <section><h2>类型声明不会检查网络数据</h2><p>把模型输出写成 <code>JSON.parse(text) as Answer</code>，只是告诉 TypeScript 相信你的断言。它没有验证返回对象是否真的有 answer 字段，也没有防止 citations 变成数字。模型输出和任何外部 API 响应一样，进入业务逻辑之前需要运行时校验。</p><p>第一层检查是合法 JSON；第二层是字段类型与取值；第三层才是业务规则。<a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse">JSON.parse</a>处理第一层；它不能证明某个文档 ID 存在，更不能证明回答忠实于该文档。学会拆开这三层，错误处理才会有针对性。</p></section><section><h2>让生成与校验使用同一份结构</h2><p><a href="https://ai-sdk.dev/docs/ai-sdk-core/generating-structured-data">当前 AI SDK 的结构化输出文档</a>使用 generateText 的 output 配合 Output.object 指定结构。下面的 schema 同时表达给模型的输出形状和应用要接收的数据类型。具体模型对结构约束的支持仍需核对，结构化生成不是取消错误处理的理由。</p><p>字段应对应产品需要。我们的答案只需要结论、引用文档 ID 和缺资料标记，不需要模型自行生成“系统确认正确”的标签。模型报告的不确定性可作为信息，但不替代程序或评估的质量判断。让每个字段都有消费者，避免为了看起来完整而增加无法验证的字段。</p></section><section><h2>校验通过，还没完成验收</h2><p>即使 citations 是合法字符串数组，里面也可能出现从未提供的 button-v99。业务层应将引用与本轮允许的文档集合核对。这个检查能够拒绝不存在的来源，但不能自动判断一段答案是否由真实来源支持；后者需要进一步规则或评估。</p><p>失败也要分类：输出无法解析、schema 不匹配、引用不存在，以及结构合法但事实不成立。它们需要不同修复。不要在解析失败时默默返回空对象，那会把上游失败推迟成下游难以理解的 UI 错误。第 0011 课会区分可重试失败与需要修改输入的失败。</p></section>
-<section><h2>把过程放进 TypeScript</h2><p>官方结构化输出接口片段，未执行真实 API。model 由第 0003 课的服务端适配器配置；这里单独展示结构与引用检查。</p><pre><code class="language-ts">import { generateText, Output } from &quot;ai&quot;;
+<section><h2>把过程放进 TypeScript</h2><p>官方结构化输出接口片段，未执行真实 API。model 由第 0003 课的服务端适配器配置；这里单独展示结构与引用检查。</p><pre><code class="language-typescript">import { generateText, Output } from &quot;ai&quot;;
 import { z } from &quot;zod&quot;;
 
 const AnswerSchema = z.object({

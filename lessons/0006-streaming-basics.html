@@ -3,14 +3,15 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>0006 · 理解流式输出的事件边界 — Agent 工程学习</title>
 <meta name="description" content="把流式输出理解为逐步到达的事件，区分已显示文本、完整结果与执行成功。">
-<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#main">跳到正文</a><main class="narrow" id="main">
 <nav aria-label="课程导航"><a href="../index.html#curriculum">全部课程</a><a href="../reference/glossary.html">术语速查</a></nav>
 <header><p class="eyebrow">02 · 可用的模型接口 · LESSON 0006</p><h1>理解流式输出的事件边界</h1>
 <p class="lede">把流式输出理解为逐步到达的事件，区分已显示文本、完整结果与执行成功。</p><p class="meta"><span>阅读与检查 15–20 分钟</span><span>动手任务 25 分钟</span><span>资料核对 2026-09-22</span></p></header>
 <aside class="callout"><strong>这一课的具体成果</strong><p>实现一个只接收明确事件的 UI 状态更新函数，并正确处理半途断流。</p><p><strong>前置知识：</strong>熟悉 async iteration 或事件监听，完成第 0005 课。</p></aside>
 <section><h2>显示了一半，不代表任务成功一半</h2><p>流式输出让用户在完整回答生成之前看到增量内容。<a href="https://ai-sdk.dev/docs/ai-sdk-core/generating-text">AI SDK 的 streamText</a>提供 textStream，可以逐段读取文本。对前端工程师来说，关键不是“每次多拼一个字符串”，而是清楚区分正在产生内容与一次任务已经完成。</p><p>例如先收到“loading 为 true 时”，然后连接中断。界面应保留可见片段并标明未完成，而不能把它记成正常答案。HTTP 响应头成功也不等于后续流一定成功。出错、取消和完成是不同状态，不能都在 finally 里统一设置为“成功”。</p></section><section><h2>传输块不是业务事件</h2><p>网络把数据分块传输，但一个块可能包含半个事件或多个事件；文本编码也可能跨块。实际使用 SSE、JSON Lines 或 SDK 的流协议时，应由对应解析器恢复事件。<a href="https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream">ReadableStream 文档</a>介绍了分块读取与消费方式。不要将每次 read() 的原始字节当作一条完整 JSON。</p><p>同样，工具参数可能分多次生成。半截参数不能被执行；应用要等完整工具请求形成，再做结构校验与权限判断。流式展示面向用户体验，执行边界面向系统行为。这两条路径可以共享事件来源，但不应共享“看到一点内容就立即执行”的假设。</p></section><section><h2>用明确状态保护界面</h2><p>本课自定义三个业务事件：文字增量、正常完成和错误。这个小集合不是供应商协议，它是你的服务端完成解析后交给 UI 的事件。真实产品还可能需要工具进度、取消与等待确认；先用小型状态模型，把最容易混淆的完成边界做对。</p><p>用户刷新页面、关闭连接或服务端意外结束时，如果没有收到约定的成功信号，就不能擅自推导 complete。部分文本可以保留，但应带着 incomplete 或 failed 的状态，避免后续摘要把半句答案当成已确认事实。</p></section>
-<section><h2>把过程放进 TypeScript</h2><p>自定义 TypeScript UI 事件片段，不是 AI SDK 原始事件结构。它演示解析后的事件如何更新状态，未连接真实服务。</p><pre><code class="language-ts">type StreamEvent =
+<section><h2>把过程放进 TypeScript</h2><p>自定义 TypeScript UI 事件片段，不是 AI SDK 原始事件结构。它演示解析后的事件如何更新状态，未连接真实服务。</p><pre><code class="language-typescript">type StreamEvent =
   | { type: &quot;text&quot;; delta: string }
   | { type: &quot;done&quot; }
   | { type: &quot;error&quot;; message: string };

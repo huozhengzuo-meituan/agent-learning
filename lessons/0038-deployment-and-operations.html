@@ -1,5 +1,6 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0038 · 把实验变成可运行的服务 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0038 · 把实验变成可运行的服务 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#main">跳到课程正文</a><main id="main" class="narrow">
 <nav aria-label="课程导航"><a href="../index.html#curriculum">课程地图</a><a href="../reference/glossary.html">术语速查</a><a href="../labs/README.md">实验入口</a></nav>
 <header><div class="eyebrow">13 · 运行与综合作品 / LESSON 0038</div><h1>把实验变成可运行的服务</h1><p class="lede">为一次 Agent 服务上线定义可回滚的发布单位和可观察的停止条件。</p><div class="meta"><span>阅读 10–15 分钟 · 练习 20–40 分钟</span><span>来源核对：2026-09-22</span><span>应用侧 · TypeScript</span></div></header>
@@ -9,7 +10,7 @@
 <p>上线先使用虚构数据与离线契约测试，再进入受控试用和小比例灰度。对历史任务做影子评估可以观察回答变化，但影子流量不得执行真实写入。回滚应恢复一组兼容版本；如果新版本已产生外部副作用，回滚程序本身不会撤销它，必须另行对账。</p>
 <p><a href="https://sre.google/workbook/canarying-releases/">Google SRE 的 canary release 方法</a>提供逐步验证思路。Agent 还要观测证据正确率、批准绕过、任务中断与费用，不能只监控 HTTP 200。<a href="https://sre.google/sre-book/service-level-objectives/">SLO</a>应采用业务可理解的口径，例如“在约定预算内完成有依据的只读回答”。</p>
 <p>具体失败：新模型更爱调用工具，成功率接近，但每个任务多读十次资料，触发上游限流。灰度需同时限制总并发、每租户预算、工具频率，并有一键停止新任务的开关；停止后保留事件和在途动作状态，便于恢复与追责。</p></section>
-<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code>type ReleaseManifest = {
+<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code class="language-typescript">type ReleaseManifest = {
   appCommit: string; modelConfig: string;
   promptVersion: string; toolSchemaVersion: string;
   skillVersion: string; indexSnapshot: string; evalSet: string;

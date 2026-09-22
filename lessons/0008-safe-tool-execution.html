@@ -3,14 +3,15 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>0008 · 实现一个受约束的只读工具 — Agent 工程学习</title>
 <meta name="description" content="把工具契约变成受约束的只读执行器，在运行时检查输入、访问范围与输出大小。">
-<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#main">跳到正文</a><main class="narrow" id="main">
 <nav aria-label="课程导航"><a href="../index.html#curriculum">全部课程</a><a href="../reference/glossary.html">术语速查</a></nav>
 <header><p class="eyebrow">03 · 工具与执行循环 · LESSON 0008</p><h1>实现一个受约束的只读工具</h1>
 <p class="lede">把工具契约变成受约束的只读执行器，在运行时检查输入、访问范围与输出大小。</p><p class="meta"><span>阅读与检查 15–20 分钟</span><span>动手任务 35 分钟</span><span>资料核对 2026-09-22</span></p></header>
 <aside class="callout"><strong>这一课的具体成果</strong><p>实现一个只能读取内存里已授权文档的函数，并用边界输入证明它不会任意读文件。</p><p><strong>前置知识：</strong>完成第 0007 课，熟悉 unknown、类型缩窄、Map 和 Set。</p></aside>
 <section><h2>执行器面对的是不可信参数</h2><p>TypeScript 类型在运行时不会阻止模型或网络传入错误对象。工具入口应该从 unknown 开始，再检查对象、字段类型和长度。即使 SDK 已经做 schema 校验，工具内部的业务边界仍由你负责；特别是同一个执行函数可能被测试、后台任务或其他入口复用。</p><p>本课使用内存 Map 保存两份虚构组件文档，避免真实文件系统和外部请求。允许访问的 ID 由宿主传入的 ReadonlySet 决定。模型只能选择要读的 ID，不能修改允许集合，也不能把输入解释为路径。这个小实现足以练习权限边界，不需要先搭建完整服务。</p></section><section><h2>把可访问范围放在可信上下文里</h2><p><a href="https://ai-sdk.dev/docs/ai-sdk-core/runtime-and-tool-context">当前 AI SDK 区分模型工具输入与 per-tool context</a>。本课先用普通函数参数演示同一原则：input 是候选意图，allowedIds 是宿主已计算好的范围。只有同时满足结构规则与访问规则，才可以读取内容。</p><p>不要通过 input.allowedIds 或 input.isAdmin 建立允许集合。即使提示里要求模型“只能读有权限的文档”，真正的约束仍需要执行代码。若以后文档来自数据库，访问检查应落到可信服务端与数据访问层，不能只依靠浏览器隐藏按钮。</p></section><section><h2>只返回完成任务所需的内容</h2><p>工具结果会被放进下一轮输入，因此它也需要大小控制。这里用字符上限演示截断，并明确标记 truncated。字符数不是 token 数，但作为本地防止巨大返回值的一层约束仍有价值。不能静默截断后让模型以为拿到了全文。</p><p>成功结果带有 docId 与 version，便于回答引用。不可访问和不存在合并为 NOT_AVAILABLE，避免额外透露文档状态。这个设计牺牲了一些对模型的精细诊断，但宿主日志仍可保留内部原因。真实产品应该根据数据敏感性决定公开错误语义。</p></section>
-<section><h2>把过程放进 TypeScript</h2><p>这是独立的 TypeScript 教学片段，无 SDK、文件系统或网络依赖。片段未作为课程自动测试执行；请按练习的输入自行检查。</p><pre><code class="language-ts">const docs = new Map([
+<section><h2>把过程放进 TypeScript</h2><p>这是独立的 TypeScript 教学片段，无 SDK、文件系统或网络依赖。片段未作为课程自动测试执行；请按练习的输入自行检查。</p><pre><code class="language-typescript">const docs = new Map([
   [&quot;button-v2&quot;, { version: &quot;2&quot;, text: &quot;loading=true 时阻止重复点击。&quot; }],
   [&quot;dialog-v1&quot;, { version: &quot;1&quot;, text: &quot;关闭事件为 onClose。&quot; }],
 ]);

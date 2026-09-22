@@ -3,14 +3,15 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>0009 · 亲手读懂并补完 Agent 循环 — Agent 工程学习</title>
 <meta name="description" content="沿着“调用模型 → 执行工具 → 追加结果 → 再调用模型”读懂一个最小 Agent 循环。">
-<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#main">跳到正文</a><main class="narrow" id="main">
 <nav aria-label="课程导航"><a href="../index.html#curriculum">全部课程</a><a href="../reference/glossary.html">术语速查</a></nav>
 <header><p class="eyebrow">03 · 工具与执行循环 · LESSON 0009</p><h1>亲手读懂并补完 Agent 循环</h1>
 <p class="lede">沿着“调用模型 → 执行工具 → 追加结果 → 再调用模型”读懂一个最小 Agent 循环。</p><p class="meta"><span>阅读与检查 15–20 分钟</span><span>动手任务 40 分钟</span><span>资料核对 2026-09-22</span></p></header>
 <aside class="callout"><strong>这一课的具体成果</strong><p>补全离线循环中的结果回传，看到第二轮决定如何因工具结果而改变。</p><p><strong>前置知识：</strong>完成第 0008 课，能区分模型输入、动作请求和可信工具实现。</p></aside>
 <section><h2>循环把一次调用变成持续行动</h2><p>一个最小 Agent 的核心是把环境反馈放回下一轮上下文。第一轮模型不知道文档内容，于是请求 readDoc；宿主执行读取并记录结果；第二轮模型看到内容，才有依据回答。<a href="https://ai-sdk.dev/docs/agents/overview">AI SDK 的 Agent 概述</a>将循环的职责包括上下文维护和停止控制。今天先看最小机制，不急着引入复杂框架。</p><p>如果执行了工具却没有把结果交给下一轮，模型只知道“我曾要求读取”，不知道读取成功与否。另一个常见错误是只传工具结果，却丢掉原问题和调用关联，导致结果难以解释。一次完整轨迹需要保留目标、动作以及对应观察。</p></section><section><h2>调用与结果要成对</h2><p>每个工具调用应有关联标识，结果回到对应调用。真实供应商对消息格式与顺序有各自要求；下面的类型是课程自定义协议，便于理解，不应直接作为某家 API 的请求体。示例每轮最多一个只读工具，不覆盖并行调用、流式参数或重放恢复。</p><p>在模型调用之前，应用要准备本轮可见历史；在工具执行之前，应用要校验动作；在执行之后，应用要如实记录成功或失败。模型生成的文本不能替代这些程序步骤。下一轮收到 NOT_AVAILABLE 时，可以解释资料不足，也可以在可用工具范围内选择别的办法。</p></section><section><h2>用离线模型观察反馈的作用</h2><p>本工作区的<a href="../labs/README.md">离线 TypeScript 实验</a>使用预设决策模拟模型，不需要 API Key。它可以稳定重现“请求工具—读取结果—回答”的顺序，适合断点观察与补代码。它证明循环逻辑是否正确，不证明真实模型会在陌生问题上做出正确判断。</p><p>先把一次工具结果传递正确，再扩展停止预算与错误处理。一次学习只改变一个关键步骤，你才知道行为改善来自哪里。后续替换成真实模型适配器时，仍应保留离线的确定性测试，作为运行时控制逻辑的回归基线。</p></section>
-<section><h2>把过程放进 TypeScript</h2><p>以下是课程自定义的简化循环片段，未连接提供商。decide 在本课是可信离线替身；真实模型输出接入此类型前必须运行时校验。</p><pre><code class="language-ts">type Decision =
+<section><h2>把过程放进 TypeScript</h2><p>以下是课程自定义的简化循环片段，未连接提供商。decide 在本课是可信离线替身；真实模型输出接入此类型前必须运行时校验。</p><pre><code class="language-typescript">type Decision =
   | { kind: &quot;answer&quot;; text: string }
   | { kind: &quot;call&quot;; id: string; name: &quot;readDoc&quot;; input: unknown };
 type Message =

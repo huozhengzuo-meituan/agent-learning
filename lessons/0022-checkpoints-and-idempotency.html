@@ -3,7 +3,8 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="根据崩溃发生的位置选择恢复策略，避免把“响应丢失”误当成“动作未发生”。">
 <title>0022 · 检查点、恢复与幂等 — TypeScript Agent 工程</title>
-<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#lesson">跳到课程正文</a>
 <main class="narrow" id="lesson">
 <nav aria-label="课程导航">
@@ -20,7 +21,7 @@
  <p>Agent 请求外部系统创建任务，外部系统成功写入 T42，但连接断了，执行器没收到响应。此时本地没有任务 ID，若把 create 再执行一次，可能创建 T43。模型再次写出同一参数也不能保证幂等；关键是外部效果能否以稳定身份查回或去重。</p>
  <p>检查点保存的是运行状态，不是全世界的原子快照。LangGraph 的持久化与故障容错文档说明了保存执行进度和失败后恢复的职责；外部副作用仍需按工具本身的语义处理。<a href="https://docs.langchain.com/oss/javascript/langgraph/persistence">资料：Persistence</a>，<a href="https://docs.langchain.com/oss/javascript/langgraph/fault-tolerance">资料：Fault tolerance</a>。</p>
  <h2>为每个动作写执行账本</h2>
- <p>在真实写入前，将 actionId、参数版本和稳定 idempotencyKey 持久化，并原子认领。外部系统若支持该键，同一逻辑动作的重试始终复用它；不能每次重试生成新键。得到成功响应或可靠读回后，再记录 succeeded 和结果 ID。未知状态先对账，不能展示失败后立即让模型无条件重来。</p><pre><code>type Effect =
+ <p>在真实写入前，将 actionId、参数版本和稳定 idempotencyKey 持久化，并原子认领。外部系统若支持该键，同一逻辑动作的重试始终复用它；不能每次重试生成新键。得到成功响应或可靠读回后，再记录 succeeded 和结果 ID。未知状态先对账，不能展示失败后立即让模型无条件重来。</p><pre><code class="language-typescript">type Effect =
   | { state: &quot;prepared&quot;; key: string }
   | { state: &quot;inFlight&quot;; key: string }
   | { state: &quot;unknown&quot;; key: string }

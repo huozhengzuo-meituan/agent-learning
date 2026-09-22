@@ -1,5 +1,6 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0037 · 后台 Agent 与持久任务生命周期 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0037 · 后台 Agent 与持久任务生命周期 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#main">跳到课程正文</a><main id="main" class="narrow">
 <nav aria-label="课程导航"><a href="../index.html#curriculum">课程地图</a><a href="../reference/glossary.html">术语速查</a><a href="../labs/README.md">实验入口</a></nav>
 <header><div class="eyebrow">13 · 运行与综合作品 / LESSON 0037</div><h1>后台 Agent 与持久任务生命周期</h1><p class="lede">设计一个断开浏览器后仍可恢复、取消和审计的后台任务。</p><div class="meta"><span>阅读 10–15 分钟 · 练习 20–40 分钟</span><span>来源核对：2026-09-22</span><span>应用侧 · TypeScript</span></div></header>
@@ -9,7 +10,7 @@
 <p>可采用排队、运行、等待批准、成功、失败、已取消等状态；worker 通过租约领取任务，以版本条件更新状态。事件游标帮助界面去重并续读，业务动作键防止恢复后重复写入。取消是请求与确认两个时刻：远端副作用已经发生时，不能把状态写成取消就假装它未发生。</p>
 <p><a href="https://openai.com/index/introducing-the-agents-api/">OpenAI 于 2026-09-10 发布 public beta 的 Agents API</a>，将 Codex harness 和运行基础设施以托管 API 提供；这是特定产品，公测接口与可用性需按当时文档核验。<a href="https://www.anthropic.com/engineering/managed-agents">Anthropic 2026-04 的 Managed Agents 工程文章</a>讨论 session、harness 与 sandbox 分离。可借鉴职责划分，但托管不自动代替你的租户授权、业务幂等和验收。</p>
 <p>具体失败：worker 写完草稿后崩溃，新 worker 从“运行中”重新执行，产生两份草稿。持久事件应记录动作标识与结果，接手者对账后恢复。下面是纯 TypeScript 状态判断示意，没有冒充任何托管产品 SDK。</p></section>
-<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code>type Run = {
+<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code class="language-typescript">type Run = {
   id: string;
   status: &quot;queued&quot; | &quot;running&quot; | &quot;waiting_approval&quot; |
     &quot;succeeded&quot; | &quot;failed&quot; | &quot;cancelled&quot;;

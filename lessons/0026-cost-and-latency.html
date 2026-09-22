@@ -1,5 +1,6 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0026 · 测量并优化任务成本与延迟 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0026 · 测量并优化任务成本与延迟 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#main">跳到课程正文</a><main id="main" class="narrow">
 <nav aria-label="课程导航"><a href="../index.html#curriculum">课程地图</a><a href="../reference/glossary.html">术语速查</a><a href="../labs/README.md">实验入口</a></nav>
 <header><div class="eyebrow">09 · 可观测与安全 / LESSON 0026</div><h1>测量并优化任务成本与延迟</h1><p class="lede">用每个成功任务的总成本与端到端延迟，判断一次优化是否值得保留。</p><div class="meta"><span>阅读 10–15 分钟 · 练习 20–40 分钟</span><span>来源核对：2026-09-22</span><span>应用侧 · TypeScript</span></div></header>
@@ -9,7 +10,7 @@
 <p>费用也要按任务核算：把失败、重试、缓存写入、缓存读取与工具费用都算进去，再除以成功任务数。下方数据是课程虚构样本，没有使用任何厂商定价。B 方案虽然总费用更低，但成功更少。若质量门槛未达标，就没有资格仅凭便宜胜出。</p>
 <p>可以先减少无关上下文、合并重复读取、并行独立只读查询，再尝试模型路由和推理预算。每次只改一项，在同一评估集上比较成功率、延迟分布与费用。依赖前一步文档 ID 的读取不能提前并行；读取一万行再让模型做简单计数，往往可改为工具端过滤。</p>
 <p><a href="https://platform.claude.com/docs/en/build-with-claude/prompt-caching">Claude 的 prompt caching</a>按匹配前缀复用计算，具体寿命、价格和条件以对应模型文档为准。缓存不代表模型记住了用户，也不允许跨用户复用包含私有证据的应用结果。服务目标的定义可参考 <a href="https://sre.google/sre-book/service-level-objectives/">Google SRE 的 SLI/SLO 方法</a>。</p></section>
-<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code>type Batch = { totalCost: number; successes: number; runs: number };
+<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code class="language-typescript">type Batch = { totalCost: number; successes: number; runs: number };
 function perSuccess(b: Batch): number | null {
   return b.successes === 0 ? null : b.totalCost / b.successes;
 }

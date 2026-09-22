@@ -3,7 +3,8 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="用可重放事件驱动 UI，正确显示工具执行、等待批准和最终完成，而不靠模型文案猜状态。">
 <title>0019 · 把执行事件映射为前端状态 — TypeScript Agent 工程</title>
-<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#lesson">跳到课程正文</a>
 <main class="narrow" id="lesson">
 <nav aria-label="课程导航">
@@ -20,7 +21,7 @@
  <p>Agent 一边输出说明，一边调用检索工具，还可能等待用户批准。若界面只看是否收到文字，“正在提交”会被误显示成“提交成功”。前端应该呈现服务端确认的执行事件，模型文字作为可读内容单独渲染。</p>
  <p>AI SDK 的 UI 文档展示了消息 parts 与流式事件，说明一条消息可含文本、工具和数据。<a href="https://ai-sdk.dev/docs/ai-sdk-ui/chatbot">资料：Chatbot</a>。下面使用自定义课程事件，不是该 SDK 的真实协议；你可以在适配层把所选 SDK 的事件映射为本项目模型。</p>
  <h2>状态转移由事件定义</h2>
- <p>先写清不同层次：连接状态是连接中/断开；run 状态是运行/待批准/完成/失败；每个 toolCall 有自己的状态。某个工具返回并不说明整个 run 完成，文字流结束也不说明外部写入已经成功。并行工具应按 callId 单独显示卡片。</p><pre><code>type Status = &quot;running&quot; | &quot;waiting&quot; | &quot;completed&quot; | &quot;failed&quot;;
+ <p>先写清不同层次：连接状态是连接中/断开；run 状态是运行/待批准/完成/失败；每个 toolCall 有自己的状态。某个工具返回并不说明整个 run 完成，文字流结束也不说明外部写入已经成功。并行工具应按 callId 单独显示卡片。</p><pre><code class="language-typescript">type Status = &quot;running&quot; | &quot;waiting&quot; | &quot;completed&quot; | &quot;failed&quot;;
 type View = { runId: string; seq: number; text: string; status: Status };
 type RunEvent = { runId: string; seq: number } &amp; (
   | { type: &quot;text&quot;; delta: string }

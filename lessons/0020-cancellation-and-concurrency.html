@@ -3,7 +3,8 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="阻止旧运行覆盖新 UI，并区分停止接收、停止计算与撤销已发生动作。">
 <title>0020 · 取消、并发与过期结果 — TypeScript Agent 工程</title>
-<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#lesson">跳到课程正文</a>
 <main class="narrow" id="lesson">
 <nav aria-label="课程导航">
@@ -20,7 +21,7 @@
  <p>用户提交 A，紧接着提交 B；B 先返回，A 后返回。若每次响应都直接 setState，A 会覆盖用户真正关心的 B。另一种情况是用户点了停止，浏览器断开连接，服务端却继续检索甚至已经完成写入。你需要分别定义：停止展示、请求取消运行、补偿已发生的副作用。</p>
  <p><code>AbortController</code> 可以向支持 signal 的操作发出中止信号，但不能让已经完成的外部动作倒退。DOM 规范定义的是取消机制，不是数据库事务回滚。<a href="https://dom.spec.whatwg.org/#interface-abortcontroller">资料：DOM AbortController</a>。</p>
  <h2>先用运行身份挡住晚到结果</h2>
- <p>下面是“最新一次请求拥有 UI”的单界面策略。generation 只解决本页面的结果归属；服务端还要有独立 runId、持久取消标记，以及工具开始前的检查。并行运行可改成每个 run 一张独立卡片，不能共享一个 generation 造成互相覆盖。</p><pre><code>let generation = 0;
+ <p>下面是“最新一次请求拥有 UI”的单界面策略。generation 只解决本页面的结果归属；服务端还要有独立 runId、持久取消标记，以及工具开始前的检查。并行运行可改成每个 run 一张独立卡片，不能共享一个 generation 造成互相覆盖。</p><pre><code class="language-typescript">let generation = 0;
 let active: AbortController | undefined;
 async function loadLatest(query: string, render: (text: string) =&gt; void) {
   const own = ++generation;

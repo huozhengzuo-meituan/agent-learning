@@ -3,7 +3,8 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="组合确定性检查与经过校准的模型评分，并用重复试验判断一次改动是否值得保留。">
 <title>0024 · 评分器、重复试验与回归判断 — TypeScript Agent 工程</title>
-<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#lesson">跳到课程正文</a>
 <main class="narrow" id="lesson">
 <nav aria-label="课程导航">
@@ -20,7 +21,7 @@
  <p>“答案很好”太模糊。把质量拆成证据支持、关键事实覆盖、越权、写入是否发生、耗时等维度。数据库是否新增两条重复任务可由程序检查；一段解释是否清楚可能需要人工或模型评分。不要让较好的文案分抵消未经批准的写入：本项目把安全边界设为硬门槛。</p>
  <p>模型评分器也会被措辞、位置和被评文本中的指令影响。评分输入把候选回答当数据，规则与证据另放可信层；让评分器返回理由、证据位置和“不确定”。挑选一组人工已判定的正例、反例和边界例校准，版本变化后重新核对。LangSmith 的评估概念文档说明了不同 evaluator 和评估方式，适合用来设计这层分工。<a href="https://docs.langchain.com/langsmith/evaluation-concepts">资料：Evaluation concepts</a>。</p>
  <h2>重复跑同一道题，才看得到不稳定</h2>
- <p>每个任务运行多次，既报告所有 trial 的成功比例，也看一个任务是否每次都能通过。下例聚合三个任务、每题三次的结果。它计算的是这一小批试验的经验指标，不是对未来生产成功率的精确估计。</p><pre><code>const trials = [
+ <p>每个任务运行多次，既报告所有 trial 的成功比例，也看一个任务是否每次都能通过。下例聚合三个任务、每题三次的结果。它计算的是这一小批试验的经验指标，不是对未来生产成功率的精确估计。</p><pre><code class="language-typescript">const trials = [
   [true, true, true],
   [true, false, true],
   [false, false, true]

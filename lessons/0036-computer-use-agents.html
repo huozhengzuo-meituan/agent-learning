@@ -1,5 +1,6 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0036 · 浏览器与计算机操作 Agent — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0036 · 浏览器与计算机操作 Agent — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#main">跳到课程正文</a><main id="main" class="narrow">
 <nav aria-label="课程导航"><a href="../index.html#curriculum">课程地图</a><a href="../reference/glossary.html">术语速查</a><a href="../labs/README.md">实验入口</a></nav>
 <header><div class="eyebrow">12 · 前沿能力扩展 / LESSON 0036</div><h1>浏览器与计算机操作 Agent</h1><p class="lede">用观察、动作、验证的闭环完成一次受控页面操作。</p><div class="meta"><span>阅读 10–15 分钟 · 练习 20–40 分钟</span><span>来源核对：2026-09-22</span><span>应用侧 · TypeScript</span></div></header>
@@ -9,7 +10,7 @@
 <p>如果应用提供合适的 API，优先使用明确的业务操作；没有 API 时才需要 UI 通道。网页操作可用可访问名称定位，避免硬编码坐标。<a href="https://playwright.dev/docs/locators">Playwright locators</a>提供按角色和名称定位的方式。坐标型 computer use 则必须理解截图尺寸、缩放与当前界面状态；二者不能混为同一套契约。</p>
 <p><a href="https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool">当前 Claude computer use 文档</a>已有 computer_toolset_20260801，并保留较早 beta 工具版本的兼容说明；模型和平台支持范围不同。此课只练习通用闭环与 Playwright 形状，不假设任一账号已具备该产品能力。</p>
 <p>具体失败：页面刷新导致原来的“保存草稿”坐标变成“发布”，重复点击造成外部发布。正确设计要重新观察目标、在写入前核对具体动作的批准，并在动作后读取唯一草稿 ID 或状态。遇到验证码、权限不足或目标不明应停下，不能继续猜坐标。</p></section>
-<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code>// Playwright 形状示例：page、expect 与审批服务由测试环境提供。
+<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code class="language-typescript">// Playwright 形状示例：page、expect 与审批服务由测试环境提供。
 // 先确认所在工单与目标按钮，不使用旧截图坐标。
 await expect(page.getByRole(&quot;heading&quot;, { name: &quot;工单 T-7&quot; })).toBeVisible();
 const save = page.getByRole(&quot;button&quot;, { name: &quot;保存草稿&quot;, exact: true });

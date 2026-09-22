@@ -3,7 +3,8 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="把人工批准绑定到具体动作和参数版本，在执行器中拦截未批准或已改变的写入。">
 <title>0021 · 把人工确认做成程序约束 — TypeScript Agent 工程</title>
-<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#lesson">跳到课程正文</a>
 <main class="narrow" id="lesson">
 <nav aria-label="课程导航">
@@ -20,7 +21,7 @@
  <p>用户看到“要创建任务吗”并点了确认。模型随后把目标项目从 Atlas 改成 Boreal，标题也改了。若服务器只检查 <code>approved=true</code>，用户就批准了自己从未见过的内容。有效批准应绑定动作 ID、完整参数版本、批准者、有效期和作用域。</p>
  <p>先由 Agent 生成候选动作，服务器完成参数校验和权限检查，再持久化不可变的审批快照。UI 展示目标、关键字段及影响；用户确认后，执行器使用已批准快照，不能重新向模型询问“最终参数”。参数变化就创建新的待批准版本。</p>
  <h2>模型可以提议，执行器决定是否放行</h2>
- <p>下面是服务端内的一段判定逻辑，action 与 approval 都应从服务器数据库读取，actor 应来自已验证的会话。请求方不能自己传一个 approvals 对象让服务器相信。示例用 actionId 与 revision 绑定不可变参数，生产可以补充规范化参数摘要以审计。</p><pre><code>type Action = {
+ <p>下面是服务端内的一段判定逻辑，action 与 approval 都应从服务器数据库读取，actor 应来自已验证的会话。请求方不能自己传一个 approvals 对象让服务器相信。示例用 actionId 与 revision 绑定不可变参数，生产可以补充规范化参数摘要以审计。</p><pre><code class="language-typescript">type Action = {
   id: string; revision: number; tenantId: string; ownerId: string;
   state: &quot;pending&quot; | &quot;approved&quot; | &quot;consumed&quot;;
 };

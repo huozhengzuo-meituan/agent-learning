@@ -3,14 +3,15 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>0010 · 让任务在正确的时候停止 — Agent 工程学习</title>
 <meta name="description" content="为 Agent 定义明确的停止原因，并把步骤、时间和用量预算放进程序控制。">
-<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#main">跳到正文</a><main class="narrow" id="main">
 <nav aria-label="课程导航"><a href="../index.html#curriculum">全部课程</a><a href="../reference/glossary.html">术语速查</a></nav>
 <header><p class="eyebrow">04 · 执行控制 · LESSON 0010</p><h1>让任务在正确的时候停止</h1>
 <p class="lede">为 Agent 定义明确的停止原因，并把步骤、时间和用量预算放进程序控制。</p><p class="meta"><span>阅读与检查 15–20 分钟</span><span>动手任务 30 分钟</span><span>资料核对 2026-09-22</span></p></header>
 <aside class="callout"><strong>这一课的具体成果</strong><p>设计一份停止策略，能区分“任务完成”和“因为预算不足而终止”。</p><p><strong>前置知识：</strong>完成第 0009 课，理解循环每一步发生的模型与工具调用。</p></aside>
 <section><h2>停止是业务状态的一部分</h2><p>模型可能生成答案，也可能持续查询相似资料。应用要定义什么时候允许继续、什么时候必须停止。完成、缺少必要信息、等待用户、用户取消、预算耗尽和执行失败，都是不同的终态或暂停状态。把它们全部显示成“已完成”，会把控制逻辑变成虚假的成功承诺。</p><p>对于知识助手，成功可以要求答案具有可用证据；如果步骤上限到了而没有结论，应报告已找到的材料与未完成部分。循环停下本身不说明业务任务完成。这个区分在长任务里尤其重要，因为用户往往只看到最终一条状态消息。</p></section><section><h2>限制要放在真正执行的边界</h2><p>“最多查三次”写在提示里，是给模型的行为指导；执行器在第四次请求前拒绝继续，才是可验证的限制。步骤数、工具调用数与网络尝试次数并不一定相等：一轮可能有多个工具，网络调用也可能被自动重试。因此先给每种预算命名，再明确它数的是什么。</p><p><a href="https://ai-sdk.dev/docs/agents/loop-control">当前 AI SDK 的 stopWhen 与 isStepCount</a>提供循环控制，但具体检查时点与默认值必须按版本核对。不能把框架的“步数”直接理解成你业务里的“已完成任务数”。我们用自己的状态字段先表达产品约束，之后再映射到框架。</p></section><section><h2>预算检查也有时间差</h2><p>完成一轮后才统计用量，可能已经超出预算。启动下一轮之前，需要检查剩余空间，并对单次输出、工具返回和重试次数设置界限。如果使用估计值，应清楚标记；价格、模型计量和隐藏的重试路径都可能使估算失真。严格费用上限需要更完整的预算预留与计费约束。</p><p>总超时信号应贯穿整个任务，单步也可能需要更短超时。只在 while 开头检查时钟，无法终止一个已经挂起的网络请求；取消信号必须传给支持它的底层操作。<a href="https://ai-sdk.dev/docs/ai-sdk-core/settings">AI SDK settings</a>列出 abortSignal 与 timeout 的边界，工具自身也需要遵守取消约定。</p></section>
-<section><h2>把过程放进 TypeScript</h2><p>自定义预算判定片段；token 数为练习给定值，nextTokenAllowance 只在题目约定的上界模型中有效，不是实际费用保证。</p><pre><code class="language-ts">type Budget = {
+<section><h2>把过程放进 TypeScript</h2><p>自定义预算判定片段；token 数为练习给定值，nextTokenAllowance 只在题目约定的上界模型中有效，不是实际费用保证。</p><pre><code class="language-typescript">type Budget = {
   modelCalls: number;
   maxModelCalls: number;
   usedTokens: number;

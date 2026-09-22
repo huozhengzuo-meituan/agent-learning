@@ -3,14 +3,15 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>0007 · 为模型设计清晰的工具契约 — Agent 工程学习</title>
 <meta name="description" content="为“读取一份组件文档”定义模型能理解、程序能验证的工具契约。">
-<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#main">跳到正文</a><main class="narrow" id="main">
 <nav aria-label="课程导航"><a href="../index.html#curriculum">全部课程</a><a href="../reference/glossary.html">术语速查</a></nav>
 <header><p class="eyebrow">03 · 工具与执行循环 · LESSON 0007</p><h1>为模型设计清晰的工具契约</h1>
 <p class="lede">为“读取一份组件文档”定义模型能理解、程序能验证的工具契约。</p><p class="meta"><span>阅读与检查 15–20 分钟</span><span>动手任务 30 分钟</span><span>资料核对 2026-09-22</span></p></header>
 <aside class="callout"><strong>这一课的具体成果</strong><p>写出一个 readComponentDoc 的名称、用途、输入、输出与失败语义，避免把访问权限交给模型参数。</p><p><strong>前置知识：</strong>完成第 0005 课，能解释运行时校验与业务校验。</p></aside>
 <section><h2>工具是一个有边界的接口</h2><p>工具的名称和描述帮助模型选择动作；输入 schema 约束参数形状；执行函数把动作落实到环境；结果让下一轮知道实际发生了什么。<a href="https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling">AI SDK 工具文档</a>将这些元素分别表达为 description、inputSchema 和 execute。定义一个工具，并不等于它适合任意任务。</p><p>例如“操作组件”范围太宽，而“按已知文档 ID 读取一份组件说明”明确得多。好的接口告诉模型什么时候适用、什么时候不适用、找不到内容如何处理。你可以把它当成给刚加入项目的同事写函数文档，只是调用方会依据自然语言描述来选择函数。</p></section><section><h2>输入尽量表达业务意图</h2><p>我们的助手需要文档 ID，不需要任意文件路径或 URL。把输入设计成 docId，可以让宿主用自己的映射找到材料，也避免把文件系统位置暴露为调用自由度。组件名与版本是否必须分开，取决于文档存储方式；本课用唯一 ID，让一次调用只指向一份明确材料。</p><p>不要让模型填写 apiKey、isAdmin 或 tenantId 来决定权限。这些属于可信运行上下文，由服务端根据当前用户确定。inputSchema 证明的是输入形状，不证明调用者有资格读文档。第 0008 课会把这个区别落实为执行代码。</p></section><section><h2>返回结果要支持下一步判断</h2><p>成功结果至少包含文档标识、版本和相关正文。失败结果应该区分参数错误、不可访问和不存在等应用需要处理的情形，同时避免泄漏本来不该被看见的资源信息。模型拿到“失败了”四个字，往往难以选择有意义的修复；拿到一个边界明确的错误码会更容易处理。</p><p>但不要向模型返回内部堆栈、凭据或整份数据库记录。工具返回什么，也是在决定下一轮看到什么。接口设计不只是“参数凑齐能跑”，还包括结果体积、来源与错误的可行动性。初期只做少量窄工具，更容易在具体任务上判断契约是否足够。</p></section>
-<section><h2>把过程放进 TypeScript</h2><p>当前 AI SDK 工具定义片段，未安装依赖。这里故意不提供 execute，表示只定义契约；它本身不会读取任何文档。</p><pre><code class="language-ts">import { tool } from &quot;ai&quot;;
+<section><h2>把过程放进 TypeScript</h2><p>当前 AI SDK 工具定义片段，未安装依赖。这里故意不提供 execute，表示只定义契约；它本身不会读取任何文档。</p><pre><code class="language-typescript">import { tool } from &quot;ai&quot;;
 import { z } from &quot;zod&quot;;
 
 const readComponentDoc = tool({

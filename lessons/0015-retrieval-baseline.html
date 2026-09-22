@@ -3,7 +3,8 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="对同一组问题测量检索命中，并让 Agent 按证据缺口决定是否继续搜索。">
 <title>0015 · 先建立一个能测量的检索基线 — TypeScript Agent 工程</title>
-<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#lesson">跳到课程正文</a>
 <main class="narrow" id="lesson">
 <nav aria-label="课程导航">
@@ -18,7 +19,7 @@
 <aside class="callout"><p><strong>前置：</strong>第 0014 课；工具输入输出和预算限制。</p><p><strong>能力状态：</strong>通用工程机制；本文 TypeScript 是概念示意，未连接真实模型或生产存储。</p><p>本课服务于研发知识助手项目；页面备齐不代表已经掌握。以动手结果、解释和后续迁移作为学习证据。</p></aside>
 <section aria-label="讲解与示例"><h2>检索是 Agent 的观察工具</h2>
  <p>“固定取 top-5 再回答”只能作为比较起点。研发问题可能先需要找到模块名称，再根据错误码检索，再打开具体版本的原文。现代 Agent 可以根据上一轮结果改变查询和读取对象。LangChain 当前检索文档同时讨论固定两步、Agent 自主检索和混合方法，差异在于谁决定检索时机与次数。<a href="https://docs.langchain.com/oss/javascript/deepagents/retrieval">资料：Retrieval</a>。</p>
- <p>本课先做一个可解释的词项命中基线，是为了判断后续向量、重排和自主搜索是否真的改善了结果。它不是最终架构，也不是中文通用搜索算法。把每个查询和文档事先写成词项数组，可以暂时避开分词实现，专注理解测量。</p><pre><code>type Doc = { id: string; terms: string[] };
+ <p>本课先做一个可解释的词项命中基线，是为了判断后续向量、重排和自主搜索是否真的改善了结果。它不是最终架构，也不是中文通用搜索算法。把每个查询和文档事先写成词项数组，可以暂时避开分词实现，专注理解测量。</p><pre><code class="language-typescript">type Doc = { id: string; terms: string[] };
 function retrieve(query: string[], docs: Doc[], k: number): string[] {
   const wanted = new Set(query);
   return docs.map(doc =&gt; ({ id: doc.id,

@@ -3,14 +3,15 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>0012 · 模型、SDK 与 Harness：现代 Agent 运行时 — Agent 工程学习</title>
 <meta name="description" content="区分模型、提供商适配器、工具循环和 Harness 的职责，为现代 Agent 应用选择清晰的运行边界。">
-<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#main">跳到正文</a><main class="narrow" id="main">
 <nav aria-label="课程导航"><a href="../index.html#curriculum">全部课程</a><a href="../reference/glossary.html">术语速查</a></nav>
 <header><p class="eyebrow">04 · 执行控制 · LESSON 0012</p><h1>模型、SDK 与 Harness：现代 Agent 运行时</h1>
 <p class="lede">区分模型、提供商适配器、工具循环和 Harness 的职责，为现代 Agent 应用选择清晰的运行边界。</p><p class="meta"><span>阅读与检查 15–20 分钟</span><span>动手任务 30 分钟</span><span>资料核对 2026-09-22</span></p></header>
 <aside class="callout"><strong>这一课的具体成果</strong><p>画出研发知识助手的职责分层，并指出切换模型不会自动获得哪些运行时能力。</p><p><strong>前置知识：</strong>完成前十一课，能解释工具循环、上下文、预算与错误处理；不要求框架经验。</p></aside>
 <section><h2>模型与运行时解决不同问题</h2><p>模型处理给定上下文并生成文字或动作请求；提供商适配器把应用调用转换成某家服务的协议；工具循环组织多步调用与观察；更完整的 Agent 运行时还可能管理会话、工作区、权限、上下文压缩和恢复。理解这几层，才能判断一个问题到底该换模型、修工具，还是修运行控制。</p><p>例如助手找不到文档，可能是工具没有暴露、权限范围错误、结果未回传，也可能是模型没有选对工具。仅仅换一个更强模型，不能修复“根本没有把结果传回去”的程序缺陷。先沿着执行轨迹找丢失环节，再选择改动层。</p></section><section><h2>Harness 是运行支撑，不是新的基模</h2><p>本课程把 Harness 用于描述围绕模型建立的执行支撑：准备上下文、开放工具、处理权限、记录事件、维持会话和终止任务。不同产品的边界并不完全一致。<a href="https://ai-sdk.dev/docs/ai-sdk-harnesses/overview">AI SDK 当前 Harness 概述</a>把已有 Agent runtime 与 provider/model 抽象明确分开，并强调会话与工作区的角色。</p><p>因此“接入一个模型”和“嵌入一个成熟编程 Agent”不是同一项集成任务。后者可能已有内置工具、权限模型和历史维护方式；应用需要理解如何传入任务、限制环境、读取事件和结束会话。不要把这些默认行为当成模型本身天然具备的能力。</p></section><section><h2>选择可解释的控制层</h2><p><a href="https://ai-sdk.dev/docs/agents/overview">当前 AI SDK</a>提供 ToolLoopAgent 用于组合模型与工具，也提供 HarnessAgent 连接已有运行时。Harness 相关包在官方概述中标为实验性，接口可能变化。现在先掌握职责图，实践时再对照锁定版本；不需要为了“前沿”一次记住全部类和配置。</p><p>一个只读文档助手可以用明确工具循环保持可观测性；需要已有编程环境、原生会话和工作区操作的产品，可以考虑成熟 Harness。固定流程仍适合边界明确的步骤，例如先校验输入再查询权限；它是运行时里的一种控制手段，不是本课程的主体。</p></section><section><h2>把状态分成可见与不可见</h2><p>模型上下文是模型本轮可见的材料；运行状态还包括请求 ID、租户范围、预算与凭据。<a href="https://ai-sdk.dev/docs/ai-sdk-core/runtime-and-tool-context">当前 runtimeContext 与 toolsContext 文档</a>描述如何在服务端传递这些值，而不是自动塞进 prompt。这种分离让你可以改变执行权限，又不让模型自行填写授权字段。</p><p>向用户展示的事件也只是运行事实的一个投影：正在读取、等待批准、已失败、已完成。能够重建“当时模型看到了什么、提出了什么、程序执行了什么”，比只保留最终答案更能支撑调试。后续课程会逐项展开这些机制。</p></section>
-<section><h2>把过程放进 TypeScript</h2><p>这是课程自定义的职责接口示意，不是某个 SDK 的真实配置。它帮助你把需要自己实现的部分和由框架承担的部分分开。</p><pre><code class="language-ts">type RuntimeResponsibilities = {
+<section><h2>把过程放进 TypeScript</h2><p>这是课程自定义的职责接口示意，不是某个 SDK 的真实配置。它帮助你把需要自己实现的部分和由框架承担的部分分开。</p><pre><code class="language-typescript">type RuntimeResponsibilities = {
   prepareModelContext: &quot;应用选择任务所需材料&quot;;
   executeTools: &quot;宿主验证参数并执行已授权动作&quot;;
   manageSession: &quot;隔离会话并保存必要状态&quot;;

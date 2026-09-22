@@ -1,5 +1,6 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0028 · 工具权限与执行隔离 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0028 · 工具权限与执行隔离 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#main">跳到课程正文</a><main id="main" class="narrow">
 <nav aria-label="课程导航"><a href="../index.html#curriculum">课程地图</a><a href="../reference/glossary.html">术语速查</a><a href="../labs/README.md">实验入口</a></nav>
 <header><div class="eyebrow">10 · 协议与框架 / LESSON 0028</div><h1>工具权限与执行隔离</h1><p class="lede">把工具能力做成最小权限，并说明代码执行需要哪一层隔离。</p><div class="meta"><span>阅读 10–15 分钟 · 练习 20–40 分钟</span><span>来源核对：2026-09-22</span><span>应用侧 · TypeScript</span></div></header>
@@ -9,7 +10,7 @@
 <p><a href="https://nodejs.org/api/vm.html">Node.js 官方明确说明 node:vm 不是安全机制</a>。TypeScript 类型检查同样不限制运行时网络请求。课程里的 runCode 接口是能力模型示意；不能把字符串交给 eval 后就称为安全沙箱。生产方案需采用适合威胁模型的隔离执行环境、资源配额、网络出口策略与凭证代理。</p>
 <p>为助手先提供一个只读搜索能力，再提供需要审批的草稿保存能力，比暴露任意 HTTP 与任意 Shell 更容易审核。授权范围由宿主构造并在每次调用时检查，沙箱只获得必要的数据和短期能力；不把长期服务凭证放入模型可执行代码的环境。</p>
 <p><a href="https://docs.docker.com/engine/security/">Docker 的安全文档</a>讨论 namespace、capability 等机制及隔离边界；“放进容器”不等于完成沙箱设计。挂载宿主根目录、共享 Docker socket、默认放行全部网络，都会破坏预期边界。具体失败案例是只允许导出摘要，却把包含所有租户资料的目录挂进了同一个容器。</p></section>
-<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code>// 课程自定义的声明；必须由真正的执行环境落实。
+<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code class="language-typescript">// 课程自定义的声明；必须由真正的执行环境落实。
 type SandboxPolicy = {
   readableArtifacts: readonly string[];
   writableDirectory: string;

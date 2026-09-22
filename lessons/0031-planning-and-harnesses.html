@@ -1,5 +1,6 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0031 · 长任务的计划与运行支撑 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0031 · 长任务的计划与运行支撑 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#main">跳到课程正文</a><main id="main" class="narrow">
 <nav aria-label="课程导航"><a href="../index.html#curriculum">课程地图</a><a href="../reference/glossary.html">术语速查</a><a href="../labs/README.md">实验入口</a></nav>
 <header><div class="eyebrow">11 · 复杂任务与验证 / LESSON 0031</div><h1>长任务的计划与运行支撑</h1><p class="lede">为跨多个上下文的长任务设计可恢复的进度与独立验收证据。</p><div class="meta"><span>阅读 10–15 分钟 · 练习 20–40 分钟</span><span>来源核对：2026-09-22</span><span>应用侧 · TypeScript</span></div></header>
@@ -9,7 +10,7 @@
 <p>本课的 harness 包含任务规格、受控工具、运行状态、产物、检查与反馈。计划是可修改的导航；验收证据必须对应真实产物版本。<a href="https://openai.com/index/harness-engineering/">OpenAI 2026-02 的工程案例</a>强调把可访问的仓库知识与反馈环境提供给 Agent。该案例的效率结果有特定团队与环境前提，不能当作普遍产能承诺。</p>
 <p>每个计划项保持一个小而可验证的交付，例如“模块 A 的三项变更均引用到版本化文档”。状态由执行结果推进，不能因为模型写了“完成”就通过。引用文件修改后，旧验收结果应失效；这和前端构建产物随源码版本变化的道理相同。</p>
 <p><a href="https://www.anthropic.com/engineering/harness-design-long-running-apps">Anthropic 2026-03 的长任务实验</a>讨论生成与评估分离，也指出旧模型需要的上下文重置策略可能随模型改善而失去价值。工程支撑应针对观测到的失败建立，并随评估重审，避免把历史补丁永久堆进每次执行。</p></section>
-<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code>type Item = {
+<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code class="language-typescript">type Item = {
   id: string;
   artifactHash: string;
   state: &quot;todo&quot; | &quot;ready&quot; | &quot;verified&quot;;

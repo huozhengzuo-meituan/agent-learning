@@ -1,5 +1,6 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0032 · 何时值得引入多个 Agent — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0032 · 何时值得引入多个 Agent — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#main">跳到课程正文</a><main id="main" class="narrow">
 <nav aria-label="课程导航"><a href="../index.html#curriculum">课程地图</a><a href="../reference/glossary.html">术语速查</a><a href="../labs/README.md">实验入口</a></nav>
 <header><div class="eyebrow">11 · 复杂任务与验证 / LESSON 0032</div><h1>何时值得引入多个 Agent</h1><p class="lede">通过任务依赖与评估结果，决定使用并行工具还是多个 Agent。</p><div class="meta"><span>阅读 10–15 分钟 · 练习 20–40 分钟</span><span>来源核对：2026-09-22</span><span>应用侧 · TypeScript</span></div></header>
@@ -9,7 +10,7 @@
 <p>如果只是已知的三次只读搜索，普通 Promise.all 就能并行；如果每个分支都要根据检索结果决定下一步，才有理由给它独立 Agent 循环。<a href="https://www.anthropic.com/engineering/multi-agent-research-system">Anthropic 的多 Agent 研究系统</a>给出这种独立研究分支的实践，但其收益与成本不能直接套用到短问答。</p>
 <p>任务委派应包含目标、允许资源、输出 schema、预算和终止条件。子 Agent 返回证据与不确定项；主 Agent 负责对齐口径和最终验收。子 Agent 的信心不是证据，相互投票也不能替代独立可检验的事实。共享写入通过一个协调者进行。</p>
 <p>具体失败场景：三个子 Agent 都只读到同一篇过期文档，却给出一致答案。增加人数没有增加信息。另一种失败是父任务取消，子任务继续消耗预算。实现要向下传播取消信号，汇总实际费用，限制总并发；使用 <a href="https://www.anthropic.com/engineering/harness-design-long-running-apps">独立评估角色</a>时也要校准评分偏差。</p></section>
-<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code>type ResearchResult = {
+<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code class="language-typescript">type ResearchResult = {
   module: string; evidenceIds: string[]; unresolved: string[];
 };
 async function gather(

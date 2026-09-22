@@ -3,7 +3,8 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="为下一次调用编排上下文预算，并写出能够保留限制、证据与未完成动作的压缩摘要。">
 <title>0014 · 选择下一步真正需要的上下文 — TypeScript Agent 工程</title>
-<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#lesson">跳到课程正文</a>
 <main class="narrow" id="lesson">
 <nav aria-label="课程导航">
@@ -20,7 +21,7 @@
  <p>知识助手已经检索了三份文档，现在要判断某次构建失败的原因。把三份全文、五十次旧搜索和整段聊天都发送给模型，会把真正关键的错误信息淹没。上下文工程要回答的是：<strong>这一步决定下一项动作，需要哪些材料？</strong>Anthropic 的工程文章讨论了按需读取、压缩和结构化笔记；它们是可组合的策略，不能只凭“窗口更大”假定效果更好。<a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents">资料：Context engineering</a>。</p>
  <p>对本项目，先保留当前目标、用户限制、工具安全规则和未完成调用，再选择相关证据。已经读过的长输出可换成来源路径、版本和关键定位，必要时用工具重读。这里的“必须保留”由应用规则定义，不能让检索分数把用户的“只读，不修改”挤出去。</p>
  <h2>先预留预算，再装材料</h2>
- <p>下面把输入按完整块选择。token 数来自调用方使用的模型计数器；代码里的 budget 是教学参数，不对应任何厂商的窗口上限。工具调用和结果需要按提供商要求成组保留，不能在 JSON 中间按字符截断。</p><pre><code>type Block = {
+ <p>下面把输入按完整块选择。token 数来自调用方使用的模型计数器；代码里的 budget 是教学参数，不对应任何厂商的窗口上限。工具调用和结果需要按提供商要求成组保留，不能在 JSON 中间按字符截断。</p><pre><code class="language-typescript">type Block = {
   id: string; tokens: number; priority: number; required: boolean;
 };
 function selectContext(blocks: Block[], budget: number): Block[] {

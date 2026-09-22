@@ -3,7 +3,8 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="把事实性断言映射到实际读取过的证据，并区分“引用存在”与“证据足以支持”。">
 <title>0017 · 让回答与检索证据对应 — TypeScript Agent 工程</title>
-<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#lesson">跳到课程正文</a>
 <main class="narrow" id="lesson">
 <nav aria-label="课程导航">
@@ -20,7 +21,7 @@
  <p>知识助手回答：“所有项目均已升级至 2.3［文档 A］。”文档 A 实际只写“Atlas 项目计划在下周升级”。链接是真的，结论仍是错的。要分别检查<strong>来源存在、模型本次可用、断言得到支持、适用范围一致</strong>。厂商的引用能力可以给出文档位置，例如 Claude 的 citations 支持结构化定位；它不能替你判定原始资料是否正确或已过期。<a href="https://platform.claude.com/docs/en/build-with-claude/citations">资料：Citations</a>。</p>
  <p>Agentic retrieval 中，search 命中一个标题不等于 read 读到了证据。把真正读取并授权的片段存到本次 evidence map，再允许模型输出这些 ID。工具结果应包含 title、位置、版本、取回时间和原文片段。用户打开引用时，仍要执行访问检查。</p>
  <h2>先做机器可判定的检查</h2>
- <p>下面是最小结构检查：事实断言必须关联当前证据集合中的 ID。它只能挡住凭空生成的编号，不能判断“计划”是否被误读成“完成”。JSON 本身仍需先按第 0005 课的方式验证，TypeScript 类型不会自动校验模型返回的字符串。</p><pre><code>type Claim = { text: string; evidenceIds: string[] };
+ <p>下面是最小结构检查：事实断言必须关联当前证据集合中的 ID。它只能挡住凭空生成的编号，不能判断“计划”是否被误读成“完成”。JSON 本身仍需先按第 0005 课的方式验证，TypeScript 类型不会自动校验模型返回的字符串。</p><pre><code class="language-typescript">type Claim = { text: string; evidenceIds: string[] };
 type Evidence = { id: string; text: string; version: string };
 function validateCitations(claims: Claim[], evidence: Evidence[]) {
   const allowed = new Set(evidence.map(e =&gt; e.id));

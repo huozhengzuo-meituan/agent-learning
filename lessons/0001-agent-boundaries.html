@@ -3,14 +3,15 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>0001 · 谁决定下一步，谁执行动作？ — Agent 工程学习</title>
 <meta name="description" content="把一个研发助手拆成模型决策、程序执行和环境反馈，解释 Agent 与一次问答的边界。">
-<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#main">跳到正文</a><main class="narrow" id="main">
 <nav aria-label="课程导航"><a href="../index.html#curriculum">全部课程</a><a href="../reference/glossary.html">术语速查</a></nav>
 <header><p class="eyebrow">01 · 模型调用基础 · LESSON 0001</p><h1>谁决定下一步，谁执行动作？</h1>
 <p class="lede">把一个研发助手拆成模型决策、程序执行和环境反馈，解释 Agent 与一次问答的边界。</p><p class="meta"><span>阅读与检查 15–20 分钟</span><span>动手任务 20 分钟</span><span>资料核对 2026-09-22</span></p></header>
 <aside class="callout"><strong>这一课的具体成果</strong><p>画出一次“查组件文档再回答”的四步轨迹，并标出每一步由谁负责。</p><p><strong>前置知识：</strong>能读懂 TypeScript 对象、函数调用和 async/await；不需要 LLM API 经验。</p></aside>
 <section><h2>从你熟悉的前端边界开始</h2><p>在前端里，用户点击按钮只是意图；事件处理函数检查条件，再调用接口。模型提出“读取 Button 文档”也只是一个动作请求。真正访问文档的是宿主程序里的工具实现。把模型输出直接当成已经发生的事实，就像看到按钮文案“已保存”便认为数据库一定写入成功。</p><p>本课程的研发知识助手使用虚构的组件文档和工单。用户问“Button 为什么不能重复点击”，模型可以直接生成回答，也可以先请求读取文档。只有后者实际返回了具体版本的说明，程序才获得可核验的新信息。说得像事实与取得事实，是两种事件。</p></section><section><h2>先认清三个角色</h2><p>模型接收本轮输入，提出下一步或生成回答；工具是具有明确输入输出的程序能力；执行循环把工具结果交回下一轮，并决定是否允许继续。<a href="https://ai-sdk.dev/docs/agents/overview">AI SDK 的当前 Agent 概述</a>也用模型、工具和循环来描述这个组合。这里的“决定”指生成供程序处理的动作，并不代表模型拥有系统权限。</p><p>你要开发的应用负责把三个角色接起来：提供哪些工具、怎样验证参数、执行结果怎样记录、超过预算怎样停止。模型可能推断出好策略，但这些可执行约束需要由应用落实。后面的 Harness 一词，主要帮助我们讨论承载这些职责的运行支撑。</p></section><section><h2>观察下一步从哪里来</h2><p>固定按“读取文档 → 摘要 → 返回”执行，是代码预设的流程。读取文档后，模型发现版本缺失，自主决定再查发布记录，这是由反馈改变下一步的 Agent 行为。两者都可能使用大模型；调用几次 API 不是分类标准。面对已知、简单任务，用固定流程也完全合理。</p><p>本课只需识别控制权。一次模型调用也可能服务于一个更大的 Agent；反过来，多轮聊天如果没有可执行工具和环境反馈，也不能仅凭轮数证明它具备完成外部任务的能力。阅读旧文章时，把定义差异记下来，避免把某个营销名称当成统一技术规范。</p></section>
-<section><h2>把过程放进 TypeScript</h2><p>以下是我们自定义的 TypeScript 教学类型，表示动作请求，不是任何供应商协议。片段用于阅读，尚未接入模型。</p><pre><code class="language-ts">type ModelDecision =
+<section><h2>把过程放进 TypeScript</h2><p>以下是我们自定义的 TypeScript 教学类型，表示动作请求，不是任何供应商协议。片段用于阅读，尚未接入模型。</p><pre><code class="language-typescript">type ModelDecision =
   | { kind: &quot;readDoc&quot;; docId: string }
   | { kind: &quot;answer&quot;; text: string };
 

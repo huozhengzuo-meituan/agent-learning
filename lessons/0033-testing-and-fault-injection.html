@@ -1,5 +1,6 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0033 · 通过故障注入检验系统边界 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>0033 · 通过故障注入检验系统边界 — Agent 工程课程</title><link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script><script src="../assets/prism/prism.min.js" defer></script>
+</head>
 <body><a class="skip-link" href="#main">跳到课程正文</a><main id="main" class="narrow">
 <nav aria-label="课程导航"><a href="../index.html#curriculum">课程地图</a><a href="../reference/glossary.html">术语速查</a><a href="../labs/README.md">实验入口</a></nav>
 <header><div class="eyebrow">11 · 复杂任务与验证 / LESSON 0033</div><h1>通过故障注入检验系统边界</h1><p class="lede">用可控故障证明授权、停止、幂等和恢复契约确实有效。</p><div class="meta"><span>阅读 10–15 分钟 · 练习 20–40 分钟</span><span>来源核对：2026-09-22</span><span>应用侧 · TypeScript</span></div></header>
@@ -9,7 +10,7 @@
 <p>把测试分成确定性的运行时契约与统计性的模型评估。假模型可以精准输出连续三次同样的工具调用，用来验证去重；它不能证明真实模型会稳定选择正确工具。真实任务要在固定评分标准下重复运行，记录成功分布。<a href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents">Agent evals 的实践文章</a>区分轨迹、最终环境状态与评分器，这正好帮助我们选择断言位置。</p>
 <p>写入幂等必须在产生副作用的一侧成立。下面的 Set 只是单进程实验夹具；生产系统需要持久幂等键、原子性与并发控制。若先写工单后记录幂等键，崩溃窗口仍会重复写入。测试不能用一种碰不到竞态的实现来“证明”分布式正确性。</p>
 <p>具体失败：第一次请求实际新增了草稿但网络超时，第二次换了一个随机幂等键；最终出现两份相同草稿。正确修复是把同一个业务动作的键保存并重用，而不是把全局重试次数设为零。Node 的<a href="https://nodejs.org/api/test.html">内置测试运行器</a>足以开始这些离线契约测试。</p></section>
-<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code>// 单进程、同步内存夹具；只演示相同动作使用同一个键。
+<section id="example"><h2>读一段代码或执行轨迹</h2><p>先预测输出或指出边界，再对照注释。以下为课程教学片段；基础机制的可运行实验见 <a href="../labs/README.md">实验说明</a>。本课特定集成需按练习自行实现，未声称已运行。</p><pre><code class="language-typescript">// 单进程、同步内存夹具；只演示相同动作使用同一个键。
 const applied = new Set&lt;string&gt;();
 let writes = 0;
 function applyDraft(key: string) {
