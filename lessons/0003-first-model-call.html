@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>0003 · 从服务端发起第一次模型调用 — Agent 工程学习</title>
+<meta name="description" content="读懂从 Node.js 服务端到模型提供商的一次最小请求，并识别凭据、模型选择、超时与结果的归属。">
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><a class="skip-link" href="#main">跳到正文</a><main class="narrow" id="main">
+<nav aria-label="课程导航"><a href="../index.html#curriculum">全部课程</a><a href="../reference/glossary.html">术语速查</a></nav>
+<header><p class="eyebrow">01 · 模型调用基础 · LESSON 0003</p><h1>从服务端发起第一次模型调用</h1>
+<p class="lede">读懂从 Node.js 服务端到模型提供商的一次最小请求，并识别凭据、模型选择、超时与结果的归属。</p><p class="meta"><span>阅读与检查 15–20 分钟</span><span>动手任务 25 分钟</span><span>资料核对 2026-09-22</span></p></header>
+<aside class="callout"><strong>这一课的具体成果</strong><p>完成一个模型调用函数的配置审查；没有 API Key 也能用本地替身完成输入输出练习。</p><p><strong>前置知识：</strong>理解 async/await、环境变量和第 0002 课的输入边界。</p></aside>
+<section><h2>先把一次请求做完整</h2><p>第一次调用的目标很小：给模型一段虚构组件文档，让它回答一个具体问题。浏览器把问题发给你的服务端；服务端配置模型提供商并发起请求；结果回来后再决定向浏览器返回什么。你熟悉的请求校验、超时、错误显示仍然适用。</p><p>本课选择 AI SDK Core 与 Anthropic 官方适配器作为具体例子。<a href="https://ai-sdk.dev/docs/ai-sdk-core/generating-text">generateText 文档</a>描述一次文本生成；<a href="https://ai-sdk.dev/providers/ai-sdk-providers/anthropic">适配器文档</a>说明默认读取 ANTHROPIC_API_KEY 环境变量。学习目标是读懂请求边界，提供商选择不会改变这个能力。</p></section><section><h2>配置留在服务端</h2><p>不要把 API Key 写进前端源码、公开环境变量或提交到版本库。这里使用进程环境变量，并在调用前检查是否配置。模型标识通过 MODEL_ID 提供，避免把示例里的某个历史型号误当成所有账号都可用的默认值。实际接入时，选择账号支持的型号，并记录所安装依赖与模型配置。</p><p>下方片段没有在本工作区安装依赖，也没有调用收费 API。后续你决定做真实调用时，需要自己在服务端环境配置凭据，再安装与你项目锁定版本兼容的 <code>ai</code> 和 <code>@ai-sdk/anthropic</code>。本课的无钥匙路径可以先验证代码组织，不能证明远端模型质量。</p></section><section><h2>返回字符串之前，还要看状态</h2><p>给请求配置输出上限和取消信号，能够把最小调用的边界显式化。这里关闭自动重试，是为了让初次观察时“一次函数调用”不暗中包含多次网络尝试；第 0011 课再训练重试策略。<a href="https://ai-sdk.dev/docs/ai-sdk-core/settings">AI SDK settings</a>列出了这些选项和提供商兼容性说明。</p><p>拿到 text 只说明获得了生成文本，不等于内容与文档一致。还要核对完成原因、用量和回答是否遗漏关键条件。不要在日志里打印完整凭据或真实私密文档。本练习只记录“是否有回答”等有限信息；精细追踪在后面单独学习。</p></section>
+<section><h2>把过程放进 TypeScript</h2><p>官方接口教学片段，未安装依赖、未运行真实 API。运行环境是支持所用 API 的 Node.js 服务端；不要复制到客户端组件。</p><pre><code class="language-ts">import { generateText } from &quot;ai&quot;;
+import { anthropic } from &quot;@ai-sdk/anthropic&quot;;
+
+export async function answerQuestion(question: string) {
+  const modelId = process.env.MODEL_ID;
+  if (!modelId || !process.env.ANTHROPIC_API_KEY) {
+    throw new Error(&quot;请在服务端配置模型与凭据&quot;);
+  }
+
+  const result = await generateText({
+    model: anthropic(modelId),
+    instructions: &quot;只依据给定文档回答；资料不足时说明。&quot;,
+    prompt: [
+      &quot;文档 button-v2：loading=true 时阻止重复点击。&quot;,
+      &quot;问题：&quot; + question,
+    ].join(&quot;\n&quot;),
+    maxOutputTokens: 300,
+    maxRetries: 0,
+    abortSignal: AbortSignal.timeout(15_000),
+  });
+
+  return {
+    text: result.text,
+    finishReason: result.finishReason,
+    usage: result.usage,
+  };
+}</code></pre><p>这里的 instructions 来自可信服务端配置，question 是待处理的用户输入。超时信号表示请求可被取消，不构成“服务商一定没有发生费用”的保证。真实调用成功后也要检查回答内容，而不是只看 HTTP 成功。</p></section>
+<section id="practice"><h2>动手：不用 API Key 练习请求边界</h2><ol><li>给 answerQuestion 写一个本地替身：返回固定的 text、finishReason 和标记为 mock 的用量；不要将虚构用量当作真实计费数据。</li><li>模拟缺少配置、正常返回、抛出网络错误三个场景，并写出界面应该展示的状态。</li><li>在上方片段标记：哪一处选择模型，哪一处携带用户问题，哪一处限制输出，哪一处控制取消。</li></ol><div class="callout"><strong>验收条件</strong><p>能够说明 key 由服务端保管；失败不会伪装为正常答案；本地替身明确标 mock；没有真实调用时，报告中不写“API 已验证”。</p></div>
+<details><summary>做过以后，再看参考答案</summary><p>本地替身可定义为返回 <code>{ text: '根据 button-v2，loading=true 会阻止重复点击。', finishReason: 'mock-complete', usage: null }</code>，并给测试路径单独命名。配置缺失属于启动或请求配置错误，网络异常属于请求失败，两者都应显示可理解的失败状态。替身验证接口组织，不能验证鉴权、模型能力或费用。</p></details></section>
+<section><h2>停下来，从记忆里回答</h2><form class="quiz" data-quiz data-answer="0" data-correct="正确。由服务端持有并发起提供商调用。" data-incorrect="想想浏览器打包结果和网络请求是否会被用户查看。">
+<fieldset><legend>生产前端需要问模型问题时，提供商 API Key 应由谁持有？</legend><label><input type="radio" name="answer" value="0">服务端持有</label><label><input type="radio" name="answer" value="1">浏览器持有</label><label><input type="radio" name="answer" value="2">模型端输出</label></fieldset><button type="submit">检查答案</button><button type="reset">重新作答</button><p class="feedback" data-feedback></p></form>
+<details><summary>答案与理由</summary><p>应选“服务端持有”。浏览器向你的服务端发送业务请求；提供商凭据不作为前端公共配置交付。</p></details></section>
+<section><h2>换个需求，还能用吗？</h2><p>团队要求换成另一家模型提供商。哪些能力应该保持，哪些配置必须重新核对？</p><details><summary>迁移题参考要点</summary><p>保持请求与错误边界、任务规格、输出验收和敏感信息处理；重新核对适配器、鉴权、模型标识、参数支持范围及输出用量字段。统一 SDK 减少接口差异，但不能保证不同模型具有相同能力。</p></details></section>
+<section><h2>原始资料与主阅读</h2><ol><li><a href="https://ai-sdk.dev/docs/ai-sdk-core/generating-text">AI SDK · Generating Text</a>：主阅读：generateText 的参数与返回结果。</li><li><a href="https://ai-sdk.dev/providers/ai-sdk-providers/anthropic">AI SDK · Anthropic Provider</a>：核对适配器创建方式和服务端凭据配置。</li><li><a href="https://ai-sdk.dev/docs/ai-sdk-core/settings">AI SDK · Settings</a>：核对 maxOutputTokens、maxRetries、abortSignal。</li></ol><p class="muted">本课场景与练习使用虚构组件文档和工单。资料核对日期为 2026-09-22；文中的 SDK 片段未执行真实模型调用，后续实践须对照项目锁定版本与账号实际支持的模型。</p></section>
+<footer><p>有不清楚的地方，直接回到对话问老师。把你的判断、代码或执行轨迹贴回来，我会根据实际表现调整下一步；读过本课不等于已经掌握。</p><nav aria-label="相邻课程"><a href="0002-model-context-tokens.html">上一课 · 一次模型调用究竟看到了什么</a><a href="0004-prompts-as-specifications.html">下一课 · 把提示写成可验证的任务规格</a></nav></footer>
+</main></body></html>

@@ -1,0 +1,242 @@
+[
+  {
+    "id": "0001",
+    "slug": "agent-boundaries",
+    "title": "谁决定下一步，谁执行动作？",
+    "module": "01 · 模型调用基础"
+  },
+  {
+    "id": "0002",
+    "slug": "model-context-tokens",
+    "title": "一次模型调用究竟看到了什么",
+    "module": "01 · 模型调用基础"
+  },
+  {
+    "id": "0003",
+    "slug": "first-model-call",
+    "title": "从服务端发起第一次模型调用",
+    "module": "01 · 模型调用基础"
+  },
+  {
+    "id": "0004",
+    "slug": "prompts-as-specifications",
+    "title": "把提示写成可验证的任务规格",
+    "module": "02 · 可用的模型接口"
+  },
+  {
+    "id": "0005",
+    "slug": "structured-output",
+    "title": "把模型输出变成可校验的数据",
+    "module": "02 · 可用的模型接口"
+  },
+  {
+    "id": "0006",
+    "slug": "streaming-basics",
+    "title": "理解流式输出的事件边界",
+    "module": "02 · 可用的模型接口"
+  },
+  {
+    "id": "0007",
+    "slug": "tool-contracts",
+    "title": "为模型设计清晰的工具契约",
+    "module": "03 · 工具与执行循环"
+  },
+  {
+    "id": "0008",
+    "slug": "safe-tool-execution",
+    "title": "实现一个受约束的只读工具",
+    "module": "03 · 工具与执行循环"
+  },
+  {
+    "id": "0009",
+    "slug": "agent-loop",
+    "title": "亲手读懂并补完 Agent 循环",
+    "module": "03 · 工具与执行循环"
+  },
+  {
+    "id": "0010",
+    "slug": "stopping-and-budgets",
+    "title": "让任务在正确的时候停止",
+    "module": "04 · 执行控制"
+  },
+  {
+    "id": "0011",
+    "slug": "errors-and-retries",
+    "title": "区分失败类型，再决定是否重试",
+    "module": "04 · 执行控制"
+  },
+  {
+    "id": "0012",
+    "slug": "runtime-and-harnesses",
+    "title": "模型、SDK 与 Harness：现代 Agent 运行时",
+    "module": "04 · 执行控制"
+  },
+  {
+    "id": "0013",
+    "slug": "conversation-state",
+    "title": "会话状态与用户隔离",
+    "module": "05 · 上下文工程"
+  },
+  {
+    "id": "0014",
+    "slug": "context-selection",
+    "title": "选择下一步真正需要的上下文",
+    "module": "05 · 上下文工程"
+  },
+  {
+    "id": "0015",
+    "slug": "retrieval-baseline",
+    "title": "先建立一个能测量的检索基线",
+    "module": "05 · 上下文工程"
+  },
+  {
+    "id": "0016",
+    "slug": "embeddings-and-ranking",
+    "title": "向量检索、分块与排序",
+    "module": "06 · 知识与记忆"
+  },
+  {
+    "id": "0017",
+    "slug": "rag-and-citations",
+    "title": "让回答与检索证据对应",
+    "module": "06 · 知识与记忆"
+  },
+  {
+    "id": "0018",
+    "slug": "memory-lifecycle",
+    "title": "记忆的写入、读取与失效",
+    "module": "06 · 知识与记忆"
+  },
+  {
+    "id": "0019",
+    "slug": "agent-web-ui",
+    "title": "把执行事件映射为前端状态",
+    "module": "07 · 产品交互"
+  },
+  {
+    "id": "0020",
+    "slug": "cancellation-and-concurrency",
+    "title": "取消、并发与过期结果",
+    "module": "07 · 产品交互"
+  },
+  {
+    "id": "0021",
+    "slug": "human-approval",
+    "title": "把人工确认做成程序约束",
+    "module": "07 · 产品交互"
+  },
+  {
+    "id": "0022",
+    "slug": "checkpoints-and-idempotency",
+    "title": "检查点、恢复与幂等",
+    "module": "08 · 可靠性与评估"
+  },
+  {
+    "id": "0023",
+    "slug": "evaluation-datasets",
+    "title": "建立有代表性的评估任务集",
+    "module": "08 · 可靠性与评估"
+  },
+  {
+    "id": "0024",
+    "slug": "graders-and-regressions",
+    "title": "评分器、重复试验与回归判断",
+    "module": "08 · 可靠性与评估"
+  },
+  {
+    "id": "0025",
+    "slug": "tracing-and-observability",
+    "title": "用执行轨迹定位问题",
+    "module": "09 · 可观测与安全"
+  },
+  {
+    "id": "0026",
+    "slug": "cost-and-latency",
+    "title": "测量并优化任务成本与延迟",
+    "module": "09 · 可观测与安全"
+  },
+  {
+    "id": "0027",
+    "slug": "prompt-injection",
+    "title": "识别提示注入与信任边界",
+    "module": "09 · 可观测与安全"
+  },
+  {
+    "id": "0028",
+    "slug": "permissions-and-sandboxing",
+    "title": "工具权限与执行隔离",
+    "module": "10 · 协议与框架"
+  },
+  {
+    "id": "0029",
+    "slug": "mcp-boundaries",
+    "title": "MCP 连接了什么，留下了什么",
+    "module": "10 · 协议与框架"
+  },
+  {
+    "id": "0030",
+    "slug": "framework-migration",
+    "title": "把手写循环映射到框架",
+    "module": "10 · 协议与框架"
+  },
+  {
+    "id": "0031",
+    "slug": "planning-and-harnesses",
+    "title": "长任务的计划与运行支撑",
+    "module": "11 · 复杂任务与验证"
+  },
+  {
+    "id": "0032",
+    "slug": "multi-agent-tradeoffs",
+    "title": "何时值得引入多个 Agent",
+    "module": "11 · 复杂任务与验证"
+  },
+  {
+    "id": "0033",
+    "slug": "testing-and-fault-injection",
+    "title": "通过故障注入检验系统边界",
+    "module": "11 · 复杂任务与验证"
+  },
+  {
+    "id": "0034",
+    "slug": "skills-and-progressive-disclosure",
+    "title": "Skills 与渐进式上下文加载",
+    "module": "12 · 前沿能力扩展"
+  },
+  {
+    "id": "0035",
+    "slug": "dynamic-tool-discovery",
+    "title": "工具发现与代码执行式工具组合",
+    "module": "12 · 前沿能力扩展"
+  },
+  {
+    "id": "0036",
+    "slug": "computer-use-agents",
+    "title": "浏览器与计算机操作 Agent",
+    "module": "12 · 前沿能力扩展"
+  },
+  {
+    "id": "0037",
+    "slug": "background-and-durable-agents",
+    "title": "后台 Agent 与持久任务生命周期",
+    "module": "13 · 运行与综合作品"
+  },
+  {
+    "id": "0038",
+    "slug": "deployment-and-operations",
+    "title": "把实验变成可运行的服务",
+    "module": "13 · 运行与综合作品"
+  },
+  {
+    "id": "0039",
+    "slug": "capstone-project",
+    "title": "完成研发知识助手综合项目",
+    "module": "13 · 运行与综合作品"
+  },
+  {
+    "id": "0040",
+    "slug": "graduation-and-transfer",
+    "title": "用新需求证明能力可以迁移",
+    "module": "13 · 运行与综合作品"
+  }
+]

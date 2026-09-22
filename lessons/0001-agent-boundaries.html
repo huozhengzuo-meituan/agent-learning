@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>0001 · 谁决定下一步，谁执行动作？ — Agent 工程学习</title>
+<meta name="description" content="把一个研发助手拆成模型决策、程序执行和环境反馈，解释 Agent 与一次问答的边界。">
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><a class="skip-link" href="#main">跳到正文</a><main class="narrow" id="main">
+<nav aria-label="课程导航"><a href="../index.html#curriculum">全部课程</a><a href="../reference/glossary.html">术语速查</a></nav>
+<header><p class="eyebrow">01 · 模型调用基础 · LESSON 0001</p><h1>谁决定下一步，谁执行动作？</h1>
+<p class="lede">把一个研发助手拆成模型决策、程序执行和环境反馈，解释 Agent 与一次问答的边界。</p><p class="meta"><span>阅读与检查 15–20 分钟</span><span>动手任务 20 分钟</span><span>资料核对 2026-09-22</span></p></header>
+<aside class="callout"><strong>这一课的具体成果</strong><p>画出一次“查组件文档再回答”的四步轨迹，并标出每一步由谁负责。</p><p><strong>前置知识：</strong>能读懂 TypeScript 对象、函数调用和 async/await；不需要 LLM API 经验。</p></aside>
+<section><h2>从你熟悉的前端边界开始</h2><p>在前端里，用户点击按钮只是意图；事件处理函数检查条件，再调用接口。模型提出“读取 Button 文档”也只是一个动作请求。真正访问文档的是宿主程序里的工具实现。把模型输出直接当成已经发生的事实，就像看到按钮文案“已保存”便认为数据库一定写入成功。</p><p>本课程的研发知识助手使用虚构的组件文档和工单。用户问“Button 为什么不能重复点击”，模型可以直接生成回答，也可以先请求读取文档。只有后者实际返回了具体版本的说明，程序才获得可核验的新信息。说得像事实与取得事实，是两种事件。</p></section><section><h2>先认清三个角色</h2><p>模型接收本轮输入，提出下一步或生成回答；工具是具有明确输入输出的程序能力；执行循环把工具结果交回下一轮，并决定是否允许继续。<a href="https://ai-sdk.dev/docs/agents/overview">AI SDK 的当前 Agent 概述</a>也用模型、工具和循环来描述这个组合。这里的“决定”指生成供程序处理的动作，并不代表模型拥有系统权限。</p><p>你要开发的应用负责把三个角色接起来：提供哪些工具、怎样验证参数、执行结果怎样记录、超过预算怎样停止。模型可能推断出好策略，但这些可执行约束需要由应用落实。后面的 Harness 一词，主要帮助我们讨论承载这些职责的运行支撑。</p></section><section><h2>观察下一步从哪里来</h2><p>固定按“读取文档 → 摘要 → 返回”执行，是代码预设的流程。读取文档后，模型发现版本缺失，自主决定再查发布记录，这是由反馈改变下一步的 Agent 行为。两者都可能使用大模型；调用几次 API 不是分类标准。面对已知、简单任务，用固定流程也完全合理。</p><p>本课只需识别控制权。一次模型调用也可能服务于一个更大的 Agent；反过来，多轮聊天如果没有可执行工具和环境反馈，也不能仅凭轮数证明它具备完成外部任务的能力。阅读旧文章时，把定义差异记下来，避免把某个营销名称当成统一技术规范。</p></section>
+<section><h2>把过程放进 TypeScript</h2><p>以下是我们自定义的 TypeScript 教学类型，表示动作请求，不是任何供应商协议。片段用于阅读，尚未接入模型。</p><pre><code class="language-ts">type ModelDecision =
+  | { kind: &quot;readDoc&quot;; docId: string }
+  | { kind: &quot;answer&quot;; text: string };
+
+const request: ModelDecision = {
+  kind: &quot;readDoc&quot;,
+  docId: &quot;button-v2&quot;,
+};
+
+// 宿主执行后，才得到环境反馈：
+const observation = {
+  docId: &quot;button-v2&quot;,
+  text: &quot;loading 为 true 时阻止重复点击。&quot;,
+};
+
+// 下一轮的模型输入可以包含 observation。
+// request 本身不代表 readDoc 已成功执行。</code></pre><p>轨迹是“用户提出问题 → 模型请求 readDoc → 宿主执行并返回 observation → 模型依据结果回答”。验证一次工具是否成功，应检查执行结果；单看模型产生了请求还不够。</p></section>
+<section id="practice"><h2>动手：给执行轨迹标注负责人</h2><ol><li>用四行写出上述轨迹，为每行标注“用户 / 模型 / 宿主”。</li><li>插入一个失败分支：文档不存在时，宿主返回什么，模型下一轮应该依据什么再决定？</li><li>另写一个固定流程版本，圈出它与模型驱动版本在“选择下一步”上的区别。</li></ol><div class="callout"><strong>验收条件</strong><p>你能区分动作请求与执行结果；失败分支不写成成功；能说明决定下一步与执行动作可以属于不同角色。</p></div>
+<details><summary>做过以后，再看参考答案</summary><p>参考轨迹：用户发问；模型提出 readDoc(button-v2)；宿主查找并返回文档或 NOT_FOUND；模型根据已有结果回答，或者请求可用的其他文档。固定流程的下一步由代码写死，模型驱动流程则把工具结果作为下一轮决策依据。无论哪一种，权限检查仍属于执行程序。</p></details></section>
+<section><h2>停下来，从记忆里回答</h2><form class="quiz" data-quiz data-answer="1" data-correct="正确。工具请求还需要由宿主处理，结果必须来自实际执行。" data-incorrect="再区分“提出动作”和“动作发生”。工具请求不是成功回执。">
+<fieldset><legend>模型输出了 readDoc 请求，此刻哪个判断成立？</legend><label><input type="radio" name="answer" value="0">读取已经完成</label><label><input type="radio" name="answer" value="1">动作仍待执行</label><label><input type="radio" name="answer" value="2">答案必然正确</label></fieldset><button type="submit">检查答案</button><button type="reset">重新作答</button><p class="feedback" data-feedback></p></form>
+<details><summary>答案与理由</summary><p>应选“动作仍待执行”。模型负责产生请求；宿主还要完成参数检查、执行和结果记录。</p></details></section>
+<section><h2>换个需求，还能用吗？</h2><p>把场景换成“帮我关闭工单”。模型回复“已关闭”之前，最少还缺哪类证据？</p><details><summary>迁移题参考要点</summary><p>需要工单系统实际处理该动作的结果，并核对目标工单与成功状态。只读文档的例子没有授权你写工单；写操作还要有对应权限与必要确认。本题先识别证据边界，审批机制会在后续专课展开。</p></details></section>
+<section><h2>原始资料与主阅读</h2><ol><li><a href="https://ai-sdk.dev/docs/agents/overview">AI SDK · Agents</a>：主阅读：只看模型、工具、循环三个组成部分。</li><li><a href="https://www.anthropic.com/engineering/building-effective-agents">Anthropic · Building effective agents</a>：补充：只看 Agent 与固定流程的定义；这是历史架构文章，工具接口以当前官方文档为准。</li></ol><p class="muted">本课场景与练习使用虚构组件文档和工单。资料核对日期为 2026-09-22；文中的 SDK 片段未执行真实模型调用，后续实践须对照项目锁定版本与账号实际支持的模型。</p></section>
+<footer><p>有不清楚的地方，直接回到对话问老师。把你的判断、代码或执行轨迹贴回来，我会根据实际表现调整下一步；读过本课不等于已经掌握。</p><nav aria-label="相邻课程"><a href="0002-model-context-tokens.html">下一课 · 一次模型调用究竟看到了什么</a></nav></footer>
+</main></body></html>

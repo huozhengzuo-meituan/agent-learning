@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>0002 · 一次模型调用究竟看到了什么 — Agent 工程学习</title>
+<meta name="description" content="根据一次调用的输入清单，判断模型知道什么、不知道什么，并为输出预留上下文空间。">
+<link rel="stylesheet" href="../assets/course.css"><script src="../assets/quiz.js" defer></script></head>
+<body><a class="skip-link" href="#main">跳到正文</a><main class="narrow" id="main">
+<nav aria-label="课程导航"><a href="../index.html#curriculum">全部课程</a><a href="../reference/glossary.html">术语速查</a></nav>
+<header><p class="eyebrow">01 · 模型调用基础 · LESSON 0002</p><h1>一次模型调用究竟看到了什么</h1>
+<p class="lede">根据一次调用的输入清单，判断模型知道什么、不知道什么，并为输出预留上下文空间。</p><p class="meta"><span>阅读与检查 15–20 分钟</span><span>动手任务 20 分钟</span><span>资料核对 2026-09-22</span></p></header>
+<aside class="callout"><strong>这一课的具体成果</strong><p>为 Button 文档问答写出一张“本轮可见信息表”，指出缺失信息与不应进入提示的服务端信息。</p><p><strong>前置知识：</strong>完成第 0001 课，理解模型请求与工具结果的区别。</p></aside>
+<section><h2>每一次调用都有输入边界</h2><p>把模型调用看成一个远程函数：它处理这一次请求携带的输入，以及服务提供者明确管理的上下文。你本地打开了哪个编辑器、数据库里有哪些文档，不会因为这些东西“存在”就自动进入模型视野。使用服务端会话或托管 Agent 时，部分历史可能由服务维护；应用仍应确认本轮实际采用了什么，而不是假定永久记忆。</p><p>一个常见错误是第一轮给了 Button v2 文档，第二轮只发送“再解释一下”，却期待模型一定知道“再”指什么。无状态调用需要应用传入必要历史；有状态接口需要正确关联会话。前端聊天窗口展示的完整记录，与本轮发送给模型的记录，也可能并不相同。</p></section><section><h2>上下文是工作材料，不是无限仓库</h2><p>本课把模型本轮处理的指令、消息、文档片段和工具结果统称为模型上下文。<a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents">Anthropic 的上下文工程文章</a>讨论了如何在有限空间里选择高价值信息。我们的工程任务是为当前问题选择足够的材料，并保持来源与版本清晰；不是把所有资料简单拼接。</p><p>例如用户问 v2 的 loading 行为，加入 v1、v2、v3 三份互相冲突的说明而不标版本，会让任务更难。只提供 v2 的相关段落，再记录没有查到的边界，通常更容易检验。第 0014 课会讨论系统化选择方法，这一课先练习发现遗漏与歧义。</p></section><section><h2>Token 影响容量、费用与截断</h2><p>Token 是模型处理文本等输入时使用的单位，不等于一个汉字、一个英文单词或 JavaScript 字符串长度。不同模型的分词方式和多模态计量方式可能不同。不能用 <code>text.length</code> 假装得到准确 token 数；实践中使用服务提供的计数工具或调用结果里的 usage，并区分估算值与实测值。</p><p>做预算时同时考虑输入与可能产生的输出，还要看具体模型对上下文、输出和推理 token 的限制。下面的算术只训练容量意识，不是供应商计费公式。即使材料放得下，也不意味着模型一定正确使用了每个细节；容量测试与答案质量测试要分别做。</p></section>
+<section><h2>把过程放进 TypeScript</h2><p>下面是自定义输入清单与预算算例，不是实际 tokenizer。所有 token 数字都是题目给定的假设。</p><pre><code class="language-ts">const visible = {
+  instructions: &quot;根据提供的文档回答，缺少信息时说明。&quot;,
+  question: &quot;Button v2 的 loading 会阻止点击吗？&quot;,
+  documents: [{
+    id: &quot;button-v2&quot;,
+    text: &quot;loading 为 true 时阻止重复点击。&quot;,
+  }],
+};
+
+const exampleBudget = {
+  contextCapacity: 8_000,
+  reservedOutput: 1_000,
+  instructionsAndHistory: 1_200,
+  toolDefinitions: 500,
+};
+
+const maxDocumentBudget =
+  exampleBudget.contextCapacity -
+  exampleBudget.reservedOutput -
+  exampleBudget.instructionsAndHistory -
+  exampleBudget.toolDefinitions; // 5_300</code></pre><p>5,300 只是当前假设下留给文档的预算。实际调用还应遵守提供商约束、序列化开销和计数方式。用户身份凭据用于宿主鉴权，不应为了“上下文完整”直接塞入 visible。</p></section>
+<section id="practice"><h2>动手：做一次上下文审计</h2><ol><li>列出指令、用户问题、Button v2 文档、之前的聊天消息、API Key 五项材料。</li><li>分别标记“本轮需要发送 / 当前不需要发送 / 仅宿主使用”，并给出理由。</li><li>把问题改成“v1 升级 v2 有什么变化”，指出当前输入缺什么，不要凭空补写 v1 行为。</li></ol><div class="callout"><strong>验收条件</strong><p>API Key 不在模型可见材料里；升级问题明确需要 v1 证据；你能解释聊天界面显示过某条消息为何不等于本轮必然发送了它。</p></div>
+<details><summary>做过以后，再看参考答案</summary><p>当前问答需要任务指令、明确版本的问题和 v2 相关文档；无关聊天不必发送，必要的指代历史才加入。API Key 仅用于宿主与服务的认证。改为版本比较后，应取得 v1 对应文档，或说明缺少 v1，不能以 v2 说明推导 v1 的历史行为。</p></details></section>
+<section><h2>停下来，从记忆里回答</h2><form class="quiz" data-quiz data-answer="1" data-correct="正确。应用需要明确把材料接入模型可见上下文。" data-incorrect="材料在本地存在，并不能证明它已进入本轮上下文。">
+<fieldset><legend>本地存在但没有随请求或工具结果提供的文档，应怎样看待？</legend><label><input type="radio" name="answer" value="0">默认已经可见</label><label><input type="radio" name="answer" value="1">默认尚不可见</label><label><input type="radio" name="answer" value="2">默认自动更新</label></fieldset><button type="submit">检查答案</button><button type="reset">重新作答</button><p class="feedback" data-feedback></p></form>
+<details><summary>答案与理由</summary><p>应选“默认尚不可见”。本地文件、前端显示状态和模型实际输入是不同对象；托管会话也应按接口规则确认可见内容。</p></details></section>
+<section><h2>换个需求，还能用吗？</h2><p>用户新开一个会话，问“按我上次那个项目的规范来”。你该检查哪两件事？</p><details><summary>迁移题参考要点</summary><p>首先确认“上次项目”是否有明确标识与可授权访问的记录；其次确认相关规范是否进入当前上下文。不能依靠跨会话自动记忆的假设。如果不知道项目，应该澄清；如果知道但没有规范，需要检索。</p></details></section>
+<section><h2>原始资料与主阅读</h2><ol><li><a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents">Anthropic · Effective context engineering</a>：主阅读：上下文选择与有限注意力的讨论，暂不展开长任务策略。</li><li><a href="https://ai-sdk.dev/docs/foundations/prompts">AI SDK · Prompts</a>：核对 prompt、messages 与 instructions 的当前输入方式。</li><li><a href="https://ai-sdk.dev/docs/ai-sdk-core/runtime-and-tool-context">AI SDK · Runtime and Tool Context</a>：区别服务端运行状态与发送给模型的内容。</li></ol><p class="muted">本课场景与练习使用虚构组件文档和工单。资料核对日期为 2026-09-22；文中的 SDK 片段未执行真实模型调用，后续实践须对照项目锁定版本与账号实际支持的模型。</p></section>
+<footer><p>有不清楚的地方，直接回到对话问老师。把你的判断、代码或执行轨迹贴回来，我会根据实际表现调整下一步；读过本课不等于已经掌握。</p><nav aria-label="相邻课程"><a href="0001-agent-boundaries.html">上一课 · 谁决定下一步，谁执行动作？</a><a href="0003-first-model-call.html">下一课 · 从服务端发起第一次模型调用</a></nav></footer>
+</main></body></html>
